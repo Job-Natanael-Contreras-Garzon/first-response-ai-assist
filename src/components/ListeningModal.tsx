@@ -5,7 +5,7 @@ import { Mic, MicOff, X, Volume2 } from 'lucide-react';
 
 interface ListeningModalProps {
   isOpen: boolean;
-  emergencyState: 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling';
+  emergencyState: string;
   isListening: boolean;
   isSpeaking: boolean;
   transcript: string;

@@ -15,13 +15,22 @@ import ConversationHistory from './ConversationHistory';
 import BottomNavigation from './BottomNavigation';
 import ResponsiveLayout from './ResponsiveLayout';
 import TestSimulator from './TestSimulator';
+import ContinuousConversation from './ContinuousConversation';
 
-type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling';
+interface ConversationMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  message: string;
+  timestamp: Date;
+}
+
+type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling' | 'conversation';
 
 const EmergencyApp = () => {
   const [emergencyState, setEmergencyState] = useState<EmergencyState>('idle');
   const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null);
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [showListeningModal, setShowListeningModal] = useState(false);
   
   const {
@@ -51,7 +60,7 @@ const EmergencyApp = () => {
     // Reset backend session
     backendAPI.resetSession();
     
-    const initialMessage = 'Describe tu emergencia. Explica claramente qué está pasando para poder ayudarte mejor.';
+    const initialMessage = 'Dime que paso?.';
     speak(initialMessage);
     setConversationHistory([`Sistema: ${initialMessage}`]);
     
@@ -79,15 +88,28 @@ const EmergencyApp = () => {
   };
 
   const processUserInput = async (userInput: string) => {
+    const isInConversation = emergencyState === 'conversation';
+    
     setEmergencyState('analyzing');
     setConversationHistory(prev => [...prev, `Usuario: ${userInput}`]);
+    
+    // Si estamos en conversación continua, agregar el mensaje del usuario
+    if (isInConversation) {
+      addMessageToConversation(userInput, 'user');
+    }
     
     try {
       console.log('Procesando entrada del usuario:', userInput);
       const response = await backendAPI.sendMessage(userInput);
       setChatResponse(response);
       
-      setEmergencyState('response');
+      // Si estamos en conversación continua, agregar la respuesta y volver a ese estado
+      if (isInConversation) {
+        addMessageToConversation(response.response, 'assistant');
+        setEmergencyState('conversation');
+      } else {
+        setEmergencyState('response');
+      }
       
       // Speak the response
       speak(response.response);
@@ -96,8 +118,13 @@ const EmergencyApp = () => {
     } catch (error) {
       console.error('Error al procesar entrada del usuario:', error);
       toast.error('No se pudo conectar con el servicio de emergencias. Verifica tu conexión a internet.');
-      setEmergencyState('idle');
-      setShowListeningModal(false);
+      
+      if (isInConversation) {
+        setEmergencyState('conversation');
+      } else {
+        setEmergencyState('idle');
+        setShowListeningModal(false);
+      }
     }
   };
 
@@ -142,10 +169,63 @@ const EmergencyApp = () => {
     setEmergencyState('idle');
     setChatResponse(null);
     setConversationHistory([]);
+    setConversationMessages([]);
     setShowListeningModal(false);
     resetTranscript();
     cancel();
     backendAPI.resetSession();
+  };
+
+  const goBackToPreviousState = () => {
+    console.log('Volviendo al estado anterior');
+    if (emergencyState === 'calling') {
+      // Si está llamando, volver al estado de respuesta
+      setEmergencyState('response');
+    } else if (emergencyState === 'response') {
+      // Si está en respuesta, volver a escucha
+      setEmergencyState('idle');
+    } else {
+      // Por defecto, volver al inicio
+      resetApp();
+    }
+  };
+
+  const goToHome = () => {
+    console.log('Volviendo al inicio');
+    resetApp();
+  };
+
+  const startContinuousConversation = () => {
+    console.log('Iniciando conversación continua');
+    if (chatResponse) {
+      // Agregar la respuesta inicial a la conversación si no existe
+      if (conversationMessages.length === 0) {
+        setConversationMessages([{
+          id: Date.now().toString(),
+          type: 'assistant',
+          message: chatResponse.response,
+          timestamp: new Date()
+        }]);
+      }
+      setEmergencyState('conversation');
+    }
+  };
+
+  const handleConversationListening = () => {
+    console.log('Iniciando escucha para conversación continua');
+    setEmergencyState('listening');
+    setShowListeningModal(true);
+    startListening();
+  };
+
+  const addMessageToConversation = (message: string, type: 'user' | 'assistant') => {
+    const newMessage: ConversationMessage = {
+      id: Date.now().toString(),
+      type,
+      message,
+      timestamp: new Date()
+    };
+    setConversationMessages(prev => [...prev, newMessage]);
   };
 
   useEffect(() => {
@@ -243,12 +323,33 @@ const EmergencyApp = () => {
         <EmergencyResponse 
           chatResponse={chatResponse}
           onReset={resetApp}
+          onBack={goBackToPreviousState}
+          onHome={goToHome}
+          onContinueConversation={startContinuousConversation}
         />
       )}
 
       {/* Calling State */}
       {emergencyState === 'calling' && (
-        <CallingScreen onReset={resetApp} />
+        <CallingScreen 
+          onReset={resetApp}
+          onBack={goBackToPreviousState}
+          onHome={goToHome}
+        />
+      )}
+
+      {/* Continuous Conversation State */}
+      {emergencyState === 'conversation' && chatResponse && (
+        <ContinuousConversation
+          initialResponse={chatResponse}
+          conversationHistory={conversationMessages}
+          onReset={resetApp}
+          onBack={goBackToPreviousState}
+          onHome={goToHome}
+          onStartListening={handleConversationListening}
+          isListening={isListening}
+          transcript={transcript}
+        />
       )}
 
       {/* Conversation History */}
