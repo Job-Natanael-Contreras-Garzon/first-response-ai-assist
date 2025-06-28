@@ -1,24 +1,53 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => void) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => void) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => void) | null;
+}
+
 interface SpeechRecognitionHook {
   isListening: boolean;
   transcript: string;
-  startListening: () => void;
+  interimTranscript: string;
+  startListening: () => Promise<void>;
   stopListening: () => void;
   resetTranscript: () => void;
+  clearTranscript: () => void;
   browserSupportsSpeechRecognition: boolean;
   error: string | null;
+  hasPermission: boolean | null;
+  requestMicrophonePermission: () => Promise<void>;
 }
 
 export const useSpeechRecognition = (): SpeechRecognitionHook => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const retryCountRef = useRef(0);
-  const maxRetries = 2; // Reducido para evitar loops infinitos
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isManuallyStoppedRef = useRef(false);
 
   const browserSupportsSpeechRecognition = 
     'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
@@ -26,33 +55,52 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
   useEffect(() => {
     if (!browserSupportsSpeechRecognition) return;
 
+    // Immediately request microphone permissions
+    const initializeMicrophone = async () => {
+      try {
+        // Request microphone access upfront
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setHasPermission(true);
+        console.log('Permisos de micrófono obtenidos exitosamente');
+      } catch (error) {
+        console.error('Error al obtener permisos de micrófono:', error);
+        setHasPermission(false);
+        setError('Necesitas permitir el acceso al micrófono para usar esta función. Por favor recarga la página y permite el acceso.');
+      }
+    };
+
+    initializeMicrophone();
+
     const SpeechRecognition = 
-      window.webkitSpeechRecognition || window.SpeechRecognition;
+      (window as typeof globalThis & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition || 
+      window.SpeechRecognition;
     
     recognitionRef.current = new SpeechRecognition();
     const recognition = recognitionRef.current;
 
-    recognition.continuous = false; // Cambiado a false para evitar problemas de red
+    // Configuración optimizada para localhost
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'es-ES';
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
-      console.log('Reconocimiento de voz iniciado');
+      console.log('🎤 Reconocimiento de voz iniciado');
       setIsListening(true);
       setError(null);
+      isManuallyStoppedRef.current = false;
       
-      // Auto-stop después de 30 segundos para evitar problemas de red
+      // Timeout más corto para entorno local
       timeoutRef.current = setTimeout(() => {
-        if (recognitionRef.current && isListening) {
-          console.log('Auto-deteniendo reconocimiento por timeout');
+        if (recognitionRef.current && !isManuallyStoppedRef.current) {
+          console.log('⏰ Auto-deteniendo reconocimiento por timeout (15s)');
           recognition.stop();
         }
-      }, 30000);
+      }, 15000); // Reducido a 15 segundos para localhost
     };
 
-    recognition.onresult = (event: any) => {
-      let interimTranscript = '';
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let currentInterimTranscript = '';
       let finalTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -60,54 +108,63 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
         if (event.results[i].isFinal) {
           finalTranscript += transcriptPart + ' ';
         } else {
-          interimTranscript += transcriptPart;
+          currentInterimTranscript += transcriptPart;
         }
       }
 
-      const fullTranscript = finalTranscript + interimTranscript;
-      console.log('Texto reconocido:', fullTranscript);
-      setTranscript(fullTranscript.trim());
+      // Update interim transcript for real-time display
+      setInterimTranscript(currentInterimTranscript);
+      
+      // Update final transcript
+      if (finalTranscript) {
+        setTranscript(prev => (prev + finalTranscript).trim());
+        setInterimTranscript(''); // Clear interim when we have final
+        console.log('✅ Texto final reconocido:', finalTranscript.trim());
+      }
+
+      if (currentInterimTranscript) {
+        console.log('⏳ Texto temporal:', currentInterimTranscript);
+      }
     };
 
-    recognition.onerror = (event: any) => {
-      console.error('Error en reconocimiento de voz:', event.error);
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('❌ Error en reconocimiento de voz:', event.error);
       setIsListening(false);
+      setInterimTranscript('');
       
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
       
-      // Handle different types of errors with less aggressive retrying
-      if (event.error === 'network' && retryCountRef.current < maxRetries) {
-        retryCountRef.current++;
-        setError(`Reintentando conexión... (${retryCountRef.current}/${maxRetries})`);
-        setTimeout(() => {
-          console.log(`Reintentando reconocimiento de voz... (intento ${retryCountRef.current})`);
-          if (recognitionRef.current && retryCountRef.current <= maxRetries) {
-            try {
-              recognitionRef.current.start();
-            } catch (err) {
-              console.error('Error al reintentar:', err);
-              setError('No se pudo reiniciar el reconocimiento de voz');
-            }
-          }
-        }, 3000); // Aumentado el delay entre reintentos
-      } else if (event.error === 'not-allowed') {
-        setError('Micrófono no permitido. Por favor permite el acceso al micrófono y recarga la página.');
-      } else if (event.error === 'no-speech') {
-        setError('No se detectó voz. Por favor habla más claro.');
-      } else if (event.error === 'network') {
-        setError('Error de conexión. Verifica tu conexión a internet.');
-        retryCountRef.current = maxRetries + 1; // Stop retrying
-      } else {
-        setError(`Error de reconocimiento de voz: ${event.error}`);
+      // Manejo simple de errores - sin reintentos automáticos
+      switch (event.error) {
+        case 'not-allowed':
+          setError('Permisos de micrófono denegados. Recarga la página y permite el acceso al micrófono.');
+          setHasPermission(false);
+          break;
+        case 'no-speech':
+          setError('No se detectó voz. Haz clic en el micrófono e intenta hablar de nuevo.');
+          break;
+        case 'network':
+          setError('Error de conexión. Para localhost, verifica que estés usando HTTPS o que el navegador permita el micrófono en HTTP local.');
+          break;
+        case 'aborted':
+          console.log('🛑 Reconocimiento abortado por el usuario');
+          // No mostrar error para cancelaciones manuales
+          break;
+        case 'audio-capture':
+          setError('No se puede acceder al micrófono. Verifica que esté conectado y no esté siendo usado por otra aplicación.');
+          break;
+        default:
+          setError(`Error de reconocimiento: ${event.error}. Intenta de nuevo.`);
       }
     };
 
     recognition.onend = () => {
-      console.log('Reconocimiento de voz terminado');
+      console.log('🔴 Reconocimiento de voz terminado');
       setIsListening(false);
+      setInterimTranscript('');
       
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -125,25 +182,74 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     };
   }, [browserSupportsSpeechRecognition]);
 
-  const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      try {
-        console.log('Iniciando escucha...');
-        setError(null);
-        retryCountRef.current = 0;
-        setTranscript(''); // Limpiar transcript al iniciar
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error('Error al iniciar reconocimiento:', err);
-        setError('No se pudo iniciar el reconocimiento de voz.');
-      }
+  const requestMicrophonePermission = async (): Promise<void> => {
+    try {
+      console.log('🎤 Solicitando permisos de micrófono...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setHasPermission(true);
+      setError(null);
+      console.log('✅ Permisos de micrófono concedidos');
+      
+      // Detener el stream inmediatamente - solo necesitábamos el permiso
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      console.error('❌ Error solicitando permisos de micrófono:', err);
+      setHasPermission(false);
+      setError('Permisos de micrófono denegados. Para usar esta función en localhost, debes permitir el acceso al micrófono en tu navegador.');
     }
   };
 
-  const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      console.log('Deteniendo escucha...');
-      retryCountRef.current = maxRetries + 1; // Prevent further retries
+  const startListening = async (): Promise<void> => {
+    console.log('🚀 Intentando iniciar reconocimiento de voz...');
+    
+    // Verificar soporte del navegador
+    if (!browserSupportsSpeechRecognition) {
+      setError('Tu navegador no soporta reconocimiento de voz. Usa Chrome, Edge o Safari.');
+      return;
+    }
+
+    // Solicitar permisos si no los tenemos
+    if (hasPermission !== true) {
+      console.log('📋 Solicitando permisos primero...');
+      await requestMicrophonePermission();
+      
+      // Verificar el estado actual después de la solicitud
+      if (hasPermission === false) {
+        console.log('❌ Permisos denegados, no se puede continuar');
+        return;
+      }
+    }
+
+    // Verificar que no estemos ya escuchando
+    if (isListening) {
+      console.log('⚠️ Ya estamos escuchando, ignorando solicitud duplicada');
+      return;
+    }
+
+    if (recognitionRef.current) {
+      try {
+        console.log('🎯 Iniciando reconocimiento de voz...');
+        setError(null);
+        setTranscript('');
+        setInterimTranscript('');
+        isManuallyStoppedRef.current = false;
+        
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error('❌ Error al iniciar reconocimiento:', err);
+        setError('No se pudo iniciar el reconocimiento de voz. Intenta de nuevo.');
+      }
+    } else {
+      setError('Sistema de reconocimiento no disponible. Recarga la página.');
+    }
+  };
+
+  const stopListening = (): void => {
+    console.log('🛑 Deteniendo reconocimiento de voz manualmente...');
+    
+    if (recognitionRef.current) {
+      isManuallyStoppedRef.current = true;
+      setIsListening(false);
       recognitionRef.current.stop();
       
       if (timeoutRef.current) {
@@ -153,28 +259,53 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     }
   };
 
-  const resetTranscript = () => {
-    console.log('Reiniciando transcript');
+  const resetTranscript = (): void => {
+    console.log('🔄 Reiniciando transcript completamente...');
+    
+    // Detener cualquier reconocimiento en curso
+    if (recognitionRef.current && isListening) {
+      isManuallyStoppedRef.current = true;
+      recognitionRef.current.stop();
+    }
+    
+    // Limpiar todos los estados
     setTranscript('');
+    setInterimTranscript('');
     setError(null);
-    retryCountRef.current = 0;
+    setIsListening(false);
+    
+    // Limpiar timeouts pendientes
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const clearTranscript = (): void => {
+    console.log('🧹 Limpiando transcripts...');
+    setTranscript('');
+    setInterimTranscript('');
   };
 
   return {
     isListening,
     transcript,
+    interimTranscript,
     startListening,
     stopListening,
     resetTranscript,
+    clearTranscript,
     browserSupportsSpeechRecognition,
-    error
+    error,
+    hasPermission,
+    requestMicrophonePermission
   };
 };
 
 // Extend Window interface for TypeScript
 declare global {
   interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognition;
   }
 }
