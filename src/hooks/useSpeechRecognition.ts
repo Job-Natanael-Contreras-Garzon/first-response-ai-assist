@@ -16,6 +16,8 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   const browserSupportsSpeechRecognition = 
     'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
@@ -38,6 +40,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       console.log('Reconocimiento de voz iniciado');
       setIsListening(true);
       setError(null);
+      retryCountRef.current = 0; // Reset retry count on successful start
     };
 
     recognition.onresult = (event: any) => {
@@ -60,16 +63,35 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
 
     recognition.onerror = (event: any) => {
       console.error('Error en reconocimiento de voz:', event.error);
-      setError(`Error: ${event.error}`);
       setIsListening(false);
       
-      // Reintentar automáticamente en caso de error de red
+      // Handle different types of errors
       if (event.error === 'network') {
-        setTimeout(() => {
-          console.log('Reintentando reconocimiento de voz...');
-          setError(null);
-          startListening();
-        }, 2000);
+        retryCountRef.current++;
+        
+        if (retryCountRef.current <= maxRetries) {
+          setError(`Error de conexión. Reintentando... (${retryCountRef.current}/${maxRetries})`);
+          setTimeout(() => {
+            console.log(`Reintentando reconocimiento de voz... (intento ${retryCountRef.current})`);
+            if (recognitionRef.current && retryCountRef.current <= maxRetries) {
+              try {
+                recognitionRef.current.start();
+              } catch (err) {
+                console.error('Error al reintentar:', err);
+                setError('No se pudo reiniciar el reconocimiento de voz');
+              }
+            }
+          }, 2000);
+        } else {
+          setError('Error de conexión persistente. Por favor verifica tu conexión a internet y presiona el botón de emergencia nuevamente.');
+          retryCountRef.current = 0;
+        }
+      } else if (event.error === 'not-allowed') {
+        setError('Micrófono no permitido. Por favor permite el acceso al micrófono y recarga la página.');
+      } else if (event.error === 'no-speech') {
+        setError('No se detectó voz. Habla más fuerte o acércate al micrófono.');
+      } else {
+        setError(`Error: ${event.error}`);
       }
     };
 
@@ -90,10 +112,11 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       try {
         console.log('Iniciando escucha...');
         setError(null);
+        retryCountRef.current = 0; // Reset retry count when manually starting
         recognitionRef.current.start();
       } catch (err) {
         console.error('Error al iniciar reconocimiento:', err);
-        setError('No se pudo iniciar el reconocimiento de voz');
+        setError('No se pudo iniciar el reconocimiento de voz. Por favor recarga la página.');
       }
     }
   };
@@ -101,6 +124,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
   const stopListening = () => {
     if (recognitionRef.current && isListening) {
       console.log('Deteniendo escucha...');
+      retryCountRef.current = maxRetries + 1; // Prevent further retries
       recognitionRef.current.stop();
     }
   };
@@ -109,6 +133,7 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     console.log('Reiniciando transcript');
     setTranscript('');
     setError(null);
+    retryCountRef.current = 0;
   };
 
   return {
