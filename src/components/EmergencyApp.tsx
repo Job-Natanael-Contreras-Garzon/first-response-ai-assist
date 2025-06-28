@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { backendAPI, ChatResponse } from '@/services/backendAPI';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import CategoryCarousel from './CategoryCarousel';
 import EmergencyButton from './EmergencyButton';
@@ -93,25 +93,9 @@ const EmergencyApp = () => {
       speak(response.response);
       setConversationHistory(prev => [...prev, `Sistema: ${response.response}`]);
       
-      // If instructions are provided, speak them too
-      if (response.instructions && response.instructions.length > 0) {
-        setTimeout(() => {
-          const instructionsText = `Instrucciones: ${response.instructions!.join('. ')}`;
-          speak(instructionsText);
-          setConversationHistory(prev => [...prev, `Sistema: ${instructionsText}`]);
-        }, response.response.length * 80 + 2000);
-      }
-      
-      // Call emergency if needed
-      if (response.shouldCallEmergency) {
-        setTimeout(() => {
-          callAmbulance();
-        }, (response.response.length + (response.instructions?.join(' ').length || 0)) * 100 + 4000);
-      }
-      
     } catch (error) {
       console.error('Error al procesar entrada del usuario:', error);
-      toast.error('Error al procesar la emergencia');
+      toast.error('No se pudo conectar con el servicio de emergencias. Verifica tu conexión a internet.');
       setEmergencyState('idle');
       setShowListeningModal(false);
     }
@@ -121,6 +105,22 @@ const EmergencyApp = () => {
     console.log('Simulando emergencia:', text);
     setShowListeningModal(false);
     processUserInput(text);
+  };
+
+  // Función para probar la conectividad con el backend
+  const handleTestConnection = async () => {
+    try {
+      toast.loading('Probando conectividad con el backend...');
+      const isConnected = await backendAPI.testConnection();
+      if (isConnected) {
+        toast.success('✅ Conectividad exitosa con el backend');
+      } else {
+        toast.error('❌ Error de conectividad. Usando respuestas locales.');
+      }
+    } catch (error) {
+      console.error('Error al probar conectividad:', error);
+      toast.error('❌ Error al probar la conectividad');
+    }
   };
 
   const callAmbulance = () => {
@@ -198,8 +198,24 @@ const EmergencyApp = () => {
           </div>
 
           {/* Test Simulator - Solo visible en desarrollo */}
-          <div className="pb-6">
+          <div className="pb-6 space-y-4">
             <TestSimulator onSimulate={handleSimulateEmergency} />
+            
+            {/* Botón de prueba de conectividad - temporal */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-900 mb-2">🔧 Test de Conectividad</h3>
+              <Button 
+                onClick={handleTestConnection}
+                variant="outline"
+                size="sm"
+                className="text-blue-700 border-blue-300 hover:bg-blue-100"
+              >
+                Probar Backend API
+              </Button>
+              <p className="text-xs text-blue-600 mt-2">
+                Verifica si el backend está funcionando correctamente
+              </p>
+            </div>
           </div>
 
           {/* Bottom Navigation */}
@@ -240,6 +256,22 @@ const EmergencyApp = () => {
         conversationHistory={conversationHistory}
         emergencyState={emergencyState}
       />
+
+      {/* Botón fijo de emergencias - Siempre visible */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Button
+          onClick={callAmbulance}
+          className="bg-red-600 hover:bg-red-700 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center"
+          size="lg"
+        >
+          <Phone className="w-6 h-6" />
+        </Button>
+        <div className="text-center mt-2">
+          <span className="text-xs text-red-600 font-medium bg-white px-2 py-1 rounded-full shadow-sm">
+            911
+          </span>
+        </div>
+      </div>
     </ResponsiveLayout>
   );
 };
