@@ -5,18 +5,18 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
-import { emergencyAI, EmergencyAnalysis } from '@/services/emergencyAI';
-import { Phone, Mic, MicOff, AlertTriangle, Heart, Shield, Volume2 } from 'lucide-react';
+import { backendAPI, ChatResponse } from '@/services/backendAPI';
+import { Phone, Mic, MicOff, AlertTriangle, Volume2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import CategoryCarousel from './CategoryCarousel';
 
 type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling';
 
 const EmergencyApp = () => {
   const [emergencyState, setEmergencyState] = useState<EmergencyState>('idle');
-  const [analysis, setAnalysis] = useState<EmergencyAnalysis | null>(null);
+  const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null);
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState('');
-  const [questionIndex, setQuestionIndex] = useState(0);
+  const [showListeningModal, setShowListeningModal] = useState(false);
   
   const {
     isListening,
@@ -33,18 +33,18 @@ const EmergencyApp = () => {
   const handleEmergencyStart = () => {
     console.log('Iniciando emergencia...');
     setEmergencyState('listening');
+    setShowListeningModal(true);
     setConversationHistory([]);
-    setCurrentQuestion('');
-    setQuestionIndex(0);
     resetTranscript();
-    cancel(); // Detener cualquier audio previo
+    cancel();
     
-    // Mensaje inicial del sistema
-    const initialMessage = '¿Qué está sucediendo? Describe la emergencia por favor.';
+    // Reset backend session
+    backendAPI.resetSession();
+    
+    const initialMessage = 'Describe tu emergencia. Explica claramente qué está pasando para poder ayudarte mejor.';
     speak(initialMessage);
     setConversationHistory([`Sistema: ${initialMessage}`]);
     
-    // Esperar un momento antes de iniciar la escucha
     setTimeout(() => {
       if (!isSpeaking) {
         startListening();
@@ -53,18 +53,13 @@ const EmergencyApp = () => {
   };
 
   const handleStopListening = () => {
-    console.log('Botón detener presionado. Transcript:', transcript);
+    console.log('Deteniendo escucha. Transcript:', transcript);
     stopListening();
     
     if (transcript.trim()) {
-      if (emergencyState === 'listening') {
-        processEmergencyDescription(transcript.trim());
-      } else if (emergencyState === 'followup') {
-        processFollowUpAnswer(transcript.trim());
-      }
+      processUserInput(transcript.trim());
     } else {
       toast.error('No se detectó ningún texto. Inténtalo de nuevo.');
-      // Reiniciar la escucha si no hay texto
       setTimeout(() => {
         resetTranscript();
         startListening();
@@ -72,75 +67,42 @@ const EmergencyApp = () => {
     }
   };
 
-  const processEmergencyDescription = async (description: string) => {
+  const processUserInput = async (userInput: string) => {
     setEmergencyState('analyzing');
-    setConversationHistory(prev => [...prev, `Usuario: ${description}`]);
+    setConversationHistory(prev => [...prev, `Usuario: ${userInput}`]);
     
     try {
-      console.log('Analizando emergencia:', description);
-      const result = await emergencyAI.analyzeEmergency(description);
-      setAnalysis(result);
+      console.log('Procesando entrada del usuario:', userInput);
+      const response = await backendAPI.sendMessage(userInput);
+      setChatResponse(response);
       
-      if (result.additionalQuestions && result.additionalQuestions.length > 0) {
-        setEmergencyState('followup');
-        setQuestionIndex(0);
-        const question = result.additionalQuestions[0];
-        setCurrentQuestion(question);
-        speak(question);
-        setConversationHistory(prev => [...prev, `Sistema: ${question}`]);
-        
-        // Esperar antes de iniciar nueva escucha
+      setEmergencyState('response');
+      
+      // Speak the response
+      speak(response.response);
+      setConversationHistory(prev => [...prev, `Sistema: ${response.response}`]);
+      
+      // If instructions are provided, speak them too
+      if (response.instructions && response.instructions.length > 0) {
         setTimeout(() => {
-          resetTranscript();
-          startListening();
-        }, question.length * 80 + 2000); // Tiempo basado en longitud + buffer
-      } else {
-        setEmergencyState('response');
-        provideFirstAidInstructions(result);
+          const instructionsText = `Instrucciones: ${response.instructions!.join('. ')}`;
+          speak(instructionsText);
+          setConversationHistory(prev => [...prev, `Sistema: ${instructionsText}`]);
+        }, response.response.length * 80 + 2000);
       }
+      
+      // Call emergency if needed
+      if (response.shouldCallEmergency) {
+        setTimeout(() => {
+          callAmbulance();
+        }, (response.response.length + (response.instructions?.join(' ').length || 0)) * 100 + 4000);
+      }
+      
     } catch (error) {
-      console.error('Error al analizar emergencia:', error);
+      console.error('Error al procesar entrada del usuario:', error);
       toast.error('Error al procesar la emergencia');
       setEmergencyState('idle');
-    }
-  };
-
-  const processFollowUpAnswer = async (answer: string) => {
-    setConversationHistory(prev => [...prev, `Usuario: ${answer}`]);
-    
-    if (analysis && analysis.additionalQuestions) {
-      const nextQuestionIndex = questionIndex + 1;
-      
-      if (nextQuestionIndex < analysis.additionalQuestions.length) {
-        // Hay más preguntas
-        setQuestionIndex(nextQuestionIndex);
-        const nextQuestion = analysis.additionalQuestions[nextQuestionIndex];
-        setCurrentQuestion(nextQuestion);
-        speak(nextQuestion);
-        setConversationHistory(prev => [...prev, `Sistema: ${nextQuestion}`]);
-        
-        setTimeout(() => {
-          resetTranscript();
-          startListening();
-        }, nextQuestion.length * 80 + 2000);
-      } else {
-        // No hay más preguntas, proceder con primeros auxilios
-        setEmergencyState('response');
-        provideFirstAidInstructions(analysis);
-      }
-    }
-  };
-
-  const provideFirstAidInstructions = (analysis: EmergencyAnalysis) => {
-    const instructions = analysis.firstAid.join('. ');
-    speak(`Esto es lo que debes hacer: ${instructions}`);
-    
-    setConversationHistory(prev => [...prev, `Sistema: Primeros auxilios - ${instructions}`]);
-    
-    if (analysis.callAmbulance) {
-      setTimeout(() => {
-        callAmbulance();
-      }, instructions.length * 100 + 3000);
+      setShowListeningModal(false);
     }
   };
 
@@ -161,12 +123,12 @@ const EmergencyApp = () => {
   const resetApp = () => {
     console.log('Reiniciando aplicación');
     setEmergencyState('idle');
-    setAnalysis(null);
+    setChatResponse(null);
     setConversationHistory([]);
-    setCurrentQuestion('');
-    setQuestionIndex(0);
+    setShowListeningModal(false);
     resetTranscript();
     cancel();
+    backendAPI.resetSession();
   };
 
   const getSeverityColor = (severity: string) => {
@@ -179,7 +141,6 @@ const EmergencyApp = () => {
     }
   };
 
-  // Mostrar errores de reconocimiento de voz
   useEffect(() => {
     if (speechError) {
       toast.error(`Error de voz: ${speechError}`);
@@ -188,13 +149,13 @@ const EmergencyApp = () => {
 
   if (!browserSupportsSpeechRecognition) {
     return (
-      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
-        <Card className="p-8 text-center max-w-md">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <Card className="p-8 text-center max-w-md bg-gray-900 border-gray-700">
           <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-red-700 mb-2">
+          <h2 className="text-xl font-bold text-red-400 mb-2">
             Navegador no compatible
           </h2>
-          <p className="text-red-600">
+          <p className="text-gray-300">
             Tu navegador no soporta reconocimiento de voz. 
             Por favor usa Chrome, Edge o Safari.
           </p>
@@ -204,242 +165,263 @@ const EmergencyApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b-4 border-red-500 p-4">
-        <div className="flex items-center justify-center space-x-2">
-          <Heart className="h-8 w-8 text-red-500" />
-          <h1 className="text-2xl font-bold text-gray-800">
-            Emergencias Médicas IA
-          </h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-black text-white">
+      {/* Main App - Estado Idle */}
+      {emergencyState === 'idle' && (
+        <div className="flex flex-col min-h-screen">
+          {/* Header */}
+          <div className="text-center py-8">
+            <h1 className="text-4xl font-bold text-gray-300 mb-2">AYUDA</h1>
+            <p className="text-gray-400 px-4">
+              ¡Siempre estamos aquí para emergencias!
+            </p>
+            <p className="text-gray-400 px-4">
+              ¡Toca para iniciar el protocolo de emergencia!
+            </p>
+          </div>
 
-      <div className="container mx-auto p-4 max-w-md">
-        {/* Estado Idle - Botón Principal */}
-        {emergencyState === 'idle' && (
-          <div className="text-center space-y-6 pt-8">
-            <div className="space-y-4">
-              <Shield className="h-20 w-20 text-red-500 mx-auto" />
-              <h2 className="text-2xl font-bold text-gray-800">
-                Sistema de Emergencias
-              </h2>
-              <p className="text-gray-600">
-                Presiona el botón en caso de emergencia médica
-              </p>
-            </div>
-            
+          {/* Emergency Button */}
+          <div className="flex-1 flex items-center justify-center px-8">
             <Button
               onClick={handleEmergencyStart}
-              className="w-48 h-48 rounded-full bg-red-600 hover:bg-red-700 text-white text-xl font-bold shadow-2xl transform hover:scale-105 transition-all duration-200"
+              className="w-64 h-64 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl transform hover:scale-105 transition-all duration-200 border-4 border-red-500"
             >
-              <div className="text-center">
-                <AlertTriangle className="h-16 w-16 mx-auto mb-2" />
-                <div>EMERGENCIA</div>
-              </div>
+              <Phone className="h-16 w-16" />
             </Button>
-            
-            <p className="text-sm text-gray-500 mt-4">
-              El sistema te guiará paso a paso
-            </p>
           </div>
-        )}
 
-        {/* Estado Escuchando */}
-        {emergencyState === 'listening' && (
-          <div className="text-center space-y-6 pt-8">
-            <div className="space-y-4">
-              <div className="relative">
-                <Mic className={`h-20 w-20 mx-auto ${isListening ? 'text-red-500' : 'text-gray-400'}`} />
-                {isListening && (
-                  <div className="absolute inset-0 border-4 border-red-500 rounded-full animate-ping opacity-20"></div>
+          {/* Category Carousel */}
+          <div className="pb-8">
+            <CategoryCarousel />
+          </div>
+
+          {/* Bottom Navigation */}
+          <div className="flex justify-center items-center space-x-8 py-6 bg-gray-900">
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 bg-gray-600 rounded"></div>
+              <span className="text-xs text-gray-400 mt-1">Live</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 bg-gray-600 rounded"></div>
+              <span className="text-xs text-gray-400 mt-1">Medic</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <Button
+                onClick={handleEmergencyStart}
+                className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700"
+              >
+                <Mic className="h-8 w-8" />
+              </Button>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 bg-gray-600 rounded"></div>
+              <span className="text-xs text-gray-400 mt-1">Vehicle</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 bg-gray-600 rounded"></div>
+              <span className="text-xs text-gray-400 mt-1">A</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Listening Modal */}
+      {showListeningModal && (emergencyState === 'listening' || emergencyState === 'analyzing') && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4 bg-gray-900 border-gray-700">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-2">
+                  <Mic className="h-5 w-5 text-red-500" />
+                  <span className="text-white font-medium">
+                    {emergencyState === 'analyzing' ? 'Analizando...' : 'Escuchando...'}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetApp}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Content */}
+              <div className="text-center space-y-4">
+                <h2 className="text-xl font-bold text-white">
+                  Describe tu emergencia
+                </h2>
+                <p className="text-gray-400 text-sm">
+                  Explica claramente qué está pasando para poder ayudarte mejor
+                </p>
+
+                {/* Voice Indicator */}
+                {emergencyState === 'listening' && (
+                  <div className="relative">
+                    <div className={`w-16 h-16 mx-auto rounded-full ${isListening ? 'bg-red-500' : 'bg-gray-600'} flex items-center justify-center`}>
+                      <Mic className="h-8 w-8 text-white" />
+                    </div>
+                    {isListening && (
+                      <div className="absolute inset-0 border-4 border-red-500 rounded-full animate-ping opacity-20"></div>
+                    )}
+                  </div>
+                )}
+
+                {emergencyState === 'analyzing' && (
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-red-500 border-t-transparent mx-auto"></div>
+                )}
+
+                {isSpeaking && (
+                  <p className="text-sm text-blue-400 flex items-center justify-center">
+                    <Volume2 className="h-4 w-4 mr-1" />
+                    Sistema hablando...
+                  </p>
+                )}
+
+                {/* Transcript */}
+                <div className="bg-gray-800 rounded-lg p-4 min-h-[80px]">
+                  <p className="text-sm text-gray-400 mb-2">Texto reconocido:</p>
+                  {transcript ? (
+                    <p className="text-white">{transcript}</p>
+                  ) : (
+                    <p className="text-gray-500 italic">Esperando tu respuesta...</p>
+                  )}
+                </div>
+
+                {/* Example */}
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Ejemplo:</p>
+                  <p className="text-xs text-gray-400">
+                    "Mi hijo se está asfixiando" o "Me corté profundamente la mano"...
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                {emergencyState === 'listening' && (
+                  <Button
+                    onClick={handleStopListening}
+                    disabled={!isListening || !transcript.trim()}
+                    className="w-full bg-gray-700 hover:bg-gray-600 text-white"
+                  >
+                    ▶ Enviar mensaje
+                  </Button>
                 )}
               </div>
-              <h2 className="text-xl font-bold text-gray-800">
-                {isListening ? 'Escuchando...' : 'Preparando para escuchar'}
-              </h2>
-              <p className="text-gray-600">
-                Describe qué está pasando
-              </p>
-              {isSpeaking && (
-                <p className="text-sm text-blue-600 flex items-center justify-center">
-                  <Volume2 className="h-4 w-4 mr-1" />
-                  Sistema hablando...
-                </p>
-              )}
             </div>
-            
-            {/* Previsualización del texto en tiempo real */}
-            <Card className="p-4 bg-white min-h-[100px] border-2 border-dashed border-gray-200">
-              <h4 className="text-sm font-medium text-gray-600 mb-2">Texto reconocido:</h4>
-              {transcript ? (
-                <p className="text-gray-800">{transcript}</p>
-              ) : (
-                <p className="text-gray-400 italic">Esperando tu respuesta...</p>
-              )}
+          </Card>
+        </div>
+      )}
+
+      {/* Response State */}
+      {emergencyState === 'response' && chatResponse && (
+        <div className="min-h-screen bg-black p-4">
+          <div className="max-w-md mx-auto space-y-6">
+            {/* Severity Badge */}
+            {chatResponse.severity && (
+              <div className="text-center">
+                <Badge className={`${getSeverityColor(chatResponse.severity)} text-white px-4 py-2`}>
+                  {chatResponse.severity.toUpperCase()}
+                </Badge>
+              </div>
+            )}
+
+            {/* Response */}
+            <Card className="bg-gray-900 border-gray-700 p-6">
+              <p className="text-white text-lg">{chatResponse.response}</p>
             </Card>
-            
-            <div className="space-y-2">
-              <Button
-                onClick={handleStopListening}
-                disabled={!isListening || !transcript.trim()}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-              >
-                <MicOff className="h-4 w-4 mr-2" />
-                Detener y Analizar
-              </Button>
-              
-              {speechError && (
-                <p className="text-sm text-red-600">
-                  Error: {speechError}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Estado Analizando */}
-        {emergencyState === 'analyzing' && (
-          <div className="text-center space-y-6 pt-8">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-red-500 border-t-transparent mx-auto"></div>
-            <h2 className="text-xl font-bold text-gray-800">
-              Analizando Emergencia...
-            </h2>
-            <p className="text-gray-600">
-              La IA está procesando la información
-            </p>
-          </div>
-        )}
-
-        {/* Estado Seguimiento */}
-        {emergencyState === 'followup' && (
-          <div className="text-center space-y-6 pt-8">
-            <div className="relative">
-              <Mic className={`h-16 w-16 mx-auto ${isListening ? 'text-orange-500' : 'text-gray-400'}`} />
-              {isListening && (
-                <div className="absolute inset-0 border-4 border-orange-500 rounded-full animate-ping opacity-20"></div>
-              )}
-            </div>
-            <h2 className="text-xl font-bold text-gray-800">
-              Necesito más información
-            </h2>
-            {currentQuestion && (
-              <Card className="p-4 bg-orange-50 border-orange-200">
-                <p className="text-orange-800 font-medium">{currentQuestion}</p>
+            {/* Instructions */}
+            {chatResponse.instructions && chatResponse.instructions.length > 0 && (
+              <Card className="bg-gray-900 border-gray-700 p-6">
+                <h3 className="text-white font-bold mb-4">Instrucciones:</h3>
+                <ol className="space-y-2">
+                  {chatResponse.instructions.map((instruction, index) => (
+                    <li key={index} className="flex text-gray-300">
+                      <span className="text-red-500 mr-2 font-bold">{index + 1}.</span>
+                      <span>{instruction}</span>
+                    </li>
+                  ))}
+                </ol>
               </Card>
             )}
-            
-            {/* Previsualización para seguimiento */}
-            <Card className="p-4 bg-white min-h-[80px] border-2 border-dashed border-gray-200">
-              <h4 className="text-sm font-medium text-gray-600 mb-2">Tu respuesta:</h4>
-              {transcript ? (
-                <p className="text-gray-800">{transcript}</p>
-              ) : (
-                <p className="text-gray-400 italic">Esperando respuesta...</p>
-              )}
-            </Card>
-            
-            <Button
-              onClick={handleStopListening}
-              disabled={!isListening || !transcript.trim()}
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              <MicOff className="h-4 w-4 mr-2" />
-              Detener y Continuar
-            </Button>
-          </div>
-        )}
 
-        {/* Respuesta con Primeros Auxilios */}
-        {emergencyState === 'response' && analysis && (
-          <div className="space-y-6 pt-4">
-            <div className="text-center">
-              <Badge className={`${getSeverityColor(analysis.severity)} text-white px-4 py-2 text-sm`}>
-                {analysis.category} - {analysis.severity.toUpperCase()}
-              </Badge>
-            </div>
-            
-            <Card className="p-6 bg-white">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <Shield className="h-5 w-5 mr-2 text-green-500" />
-                Primeros Auxilios
-              </h3>
-              <ol className="space-y-2 text-sm text-gray-700">
-                {analysis.firstAid.map((step, index) => (
-                  <li key={index} className="flex">
-                    <span className="font-medium text-green-600 mr-2">
-                      {index + 1}.
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </Card>
-            
-            {analysis.callAmbulance && (
+            {/* Emergency Call Indicator */}
+            {chatResponse.shouldCallEmergency && (
               <div className="text-center">
-                <div className="flex items-center justify-center space-x-2 text-red-600 mb-2">
+                <div className="flex items-center justify-center space-x-2 text-red-400 mb-2">
                   <Phone className="h-5 w-5" />
                   <span className="font-medium">Llamando ambulancia...</span>
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Estado Llamando */}
-        {emergencyState === 'calling' && (
-          <div className="text-center space-y-6 pt-8">
+            {/* Reset Button */}
+            <div className="text-center pt-4">
+              <Button
+                onClick={resetApp}
+                variant="outline"
+                className="text-gray-400 border-gray-600 hover:text-white hover:border-gray-400"
+              >
+                Nueva Emergencia
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calling State */}
+      {emergencyState === 'calling' && (
+        <div className="min-h-screen bg-black flex items-center justify-center p-4">
+          <div className="text-center space-y-6">
             <div className="relative">
-              <Phone className="h-20 w-20 text-green-500 mx-auto" />
+              <Phone className="h-24 w-24 text-green-500 mx-auto" />
               <div className="absolute inset-0 border-4 border-green-500 rounded-full animate-ping opacity-20"></div>
             </div>
-            <h2 className="text-xl font-bold text-gray-800">
+            <h2 className="text-2xl font-bold text-white">
               Ambulancia en Camino
             </h2>
-            <p className="text-gray-600">
+            <p className="text-gray-400">
               Ayuda médica profesional está siendo enviada
             </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-green-800 font-medium">
+            <div className="bg-green-900 border border-green-600 rounded-lg p-4">
+              <p className="text-green-300 font-medium">
                 ✓ Llamada realizada automáticamente
               </p>
-              <p className="text-green-700 text-sm mt-1">
+              <p className="text-green-400 text-sm mt-1">
                 Mantén la calma y sigue las instrucciones de primeros auxilios
               </p>
             </div>
+            
+            <Button
+              onClick={resetApp}
+              variant="outline"
+              className="text-gray-400 border-gray-600 hover:text-white hover:border-gray-400"
+            >
+              Nueva Emergencia
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Historial de Conversación */}
-        {conversationHistory.length > 0 && (
-          <Card className="mt-6 p-4 bg-gray-50">
-            <h4 className="font-medium text-gray-800 mb-2">Conversación:</h4>
-            <div className="space-y-1 text-sm max-h-40 overflow-y-auto">
-              {conversationHistory.map((message, index) => (
+      {/* Conversation History */}
+      {conversationHistory.length > 0 && emergencyState !== 'idle' && (
+        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto">
+          <Card className="bg-gray-900 border-gray-700 p-4 max-h-40 overflow-y-auto">
+            <h4 className="font-medium text-white mb-2">Conversación:</h4>
+            <div className="space-y-1 text-sm">
+              {conversationHistory.slice(-3).map((message, index) => (
                 <p key={index} className={
-                  message.startsWith('Usuario:') ? 'text-blue-700' : 'text-gray-700'
+                  message.startsWith('Usuario:') ? 'text-blue-400' : 'text-gray-300'
                 }>
                   {message}
                 </p>
               ))}
             </div>
           </Card>
-        )}
-
-        {/* Botón Reset */}
-        {emergencyState !== 'idle' && (
-          <div className="text-center mt-8">
-            <Button
-              onClick={resetApp}
-              variant="outline"
-              className="text-gray-600 hover:text-gray-800"
-            >
-              Nueva Emergencia
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
