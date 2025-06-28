@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 interface SpeechSynthesisHook {
   speak: (text: string) => void;
@@ -11,27 +11,18 @@ interface SpeechSynthesisHook {
 export const useSpeechSynthesis = (): SpeechSynthesisHook => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const isInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (!isInitializedRef.current) {
-      isInitializedRef.current = true;
-      
-      const updateVoices = () => {
-        const availableVoices = speechSynthesis.getVoices();
-        setVoices(availableVoices);
-      };
+    const updateVoices = () => {
+      setVoices(speechSynthesis.getVoices());
+    };
 
-      // Cargar voces inmediatamente si están disponibles
-      updateVoices();
-      
-      // Escuchar cambios en las voces
-      speechSynthesis.addEventListener('voiceschanged', updateVoices);
+    updateVoices();
+    speechSynthesis.addEventListener('voiceschanged', updateVoices);
 
-      return () => {
-        speechSynthesis.removeEventListener('voiceschanged', updateVoices);
-      };
-    }
+    return () => {
+      speechSynthesis.removeEventListener('voiceschanged', updateVoices);
+    };
   }, []);
 
   const speak = (text: string) => {

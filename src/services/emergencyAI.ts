@@ -1,3 +1,4 @@
+
 export interface EmergencyAnalysis {
   severity: 'low' | 'medium' | 'high' | 'critical';
   category: string;
@@ -14,33 +15,10 @@ export class EmergencyAIService {
   }
 
   async analyzeEmergency(description: string): Promise<EmergencyAnalysis> {
+    // Simulación de análisis de IA - en producción usarías una API real
     console.log('Analizando emergencia:', description);
     
     const lowerDesc = description.toLowerCase();
-    
-    // Herida de bala - Emergencia crítica
-    if (lowerDesc.includes('disparo') || lowerDesc.includes('bala') || lowerDesc.includes('dispararon')) {
-      return {
-        severity: 'critical',
-        category: 'Herida de Bala',
-        firstAid: [
-          '🚨 EMERGENCIA CRÍTICA - Mantén la calma',
-          '📞 Llama INMEDIATAMENTE al 911',
-          '🩸 Aplica presión directa sobre la herida con ropa limpia',
-          '🚫 NO remuevas la bala si está visible',
-          '⬆️ Eleva la pierna por encima del corazón si es posible',
-          '💪 Mantén presión constante hasta que llegue la ambulancia',
-          '👁️ Monitorea la consciencia de la persona',
-          '🫁 Verifica que la persona siga respirando'
-        ],
-        callAmbulance: true,
-        additionalQuestions: [
-          '¿La persona está consciente y puede hablar?',
-          '¿Hay mucha pérdida de sangre?',
-          '¿Puede ver la bala o hay un orificio de salida?'
-        ]
-      };
-    }
     
     // Análisis básico por palabras clave
     if (lowerDesc.includes('corte') || lowerDesc.includes('sangre') || lowerDesc.includes('herida')) {

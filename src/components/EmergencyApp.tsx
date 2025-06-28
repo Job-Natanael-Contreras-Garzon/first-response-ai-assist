@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -5,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { emergencyAI, EmergencyAnalysis } from '@/services/emergencyAI';
-import TestSimulator from '@/components/TestSimulator';
 import { Phone, Mic, MicOff, AlertTriangle, Heart, Shield, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,18 +30,6 @@ const EmergencyApp = () => {
 
   const { speak, isSpeaking, cancel } = useSpeechSynthesis();
 
-  const handleSimulatedEmergency = (description: string) => {
-    console.log('Procesando emergencia simulada:', description);
-    setEmergencyState('analyzing');
-    setConversationHistory([`Usuario (simulado): ${description}`]);
-    cancel();
-    
-    // Procesar la descripción simulada directamente
-    setTimeout(() => {
-      processEmergencyDescription(description);
-    }, 1000);
-  };
-
   const handleEmergencyStart = () => {
     console.log('Iniciando emergencia...');
     setEmergencyState('listening');
@@ -49,12 +37,14 @@ const EmergencyApp = () => {
     setCurrentQuestion('');
     setQuestionIndex(0);
     resetTranscript();
-    cancel();
+    cancel(); // Detener cualquier audio previo
     
+    // Mensaje inicial del sistema
     const initialMessage = '¿Qué está sucediendo? Describe la emergencia por favor.';
     speak(initialMessage);
     setConversationHistory([`Sistema: ${initialMessage}`]);
     
+    // Esperar un momento antes de iniciar la escucha
     setTimeout(() => {
       if (!isSpeaking) {
         startListening();
@@ -74,6 +64,7 @@ const EmergencyApp = () => {
       }
     } else {
       toast.error('No se detectó ningún texto. Inténtalo de nuevo.');
+      // Reiniciar la escucha si no hay texto
       setTimeout(() => {
         resetTranscript();
         startListening();
@@ -98,10 +89,11 @@ const EmergencyApp = () => {
         speak(question);
         setConversationHistory(prev => [...prev, `Sistema: ${question}`]);
         
+        // Esperar antes de iniciar nueva escucha
         setTimeout(() => {
           resetTranscript();
           startListening();
-        }, question.length * 80 + 2000);
+        }, question.length * 80 + 2000); // Tiempo basado en longitud + buffer
       } else {
         setEmergencyState('response');
         provideFirstAidInstructions(result);
@@ -120,6 +112,7 @@ const EmergencyApp = () => {
       const nextQuestionIndex = questionIndex + 1;
       
       if (nextQuestionIndex < analysis.additionalQuestions.length) {
+        // Hay más preguntas
         setQuestionIndex(nextQuestionIndex);
         const nextQuestion = analysis.additionalQuestions[nextQuestionIndex];
         setCurrentQuestion(nextQuestion);
@@ -131,6 +124,7 @@ const EmergencyApp = () => {
           startListening();
         }, nextQuestion.length * 80 + 2000);
       } else {
+        // No hay más preguntas, proceder con primeros auxilios
         setEmergencyState('response');
         provideFirstAidInstructions(analysis);
       }
@@ -185,6 +179,7 @@ const EmergencyApp = () => {
     }
   };
 
+  // Mostrar errores de reconocimiento de voz
   useEffect(() => {
     if (speechError) {
       toast.error(`Error de voz: ${speechError}`);
@@ -210,6 +205,7 @@ const EmergencyApp = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50">
+      {/* Header */}
       <div className="bg-white shadow-sm border-b-4 border-red-500 p-4">
         <div className="flex items-center justify-center space-x-2">
           <Heart className="h-8 w-8 text-red-500" />
@@ -220,11 +216,6 @@ const EmergencyApp = () => {
       </div>
 
       <div className="container mx-auto p-4 max-w-md">
-        {/* Simulador de Pruebas - Solo visible en estado idle */}
-        {emergencyState === 'idle' && (
-          <TestSimulator onSimulateEmergency={handleSimulatedEmergency} />
-        )}
-
         {/* Estado Idle - Botón Principal */}
         {emergencyState === 'idle' && (
           <div className="text-center space-y-6 pt-8">
@@ -278,6 +269,7 @@ const EmergencyApp = () => {
               )}
             </div>
             
+            {/* Previsualización del texto en tiempo real */}
             <Card className="p-4 bg-white min-h-[100px] border-2 border-dashed border-gray-200">
               <h4 className="text-sm font-medium text-gray-600 mb-2">Texto reconocido:</h4>
               {transcript ? (
@@ -337,6 +329,7 @@ const EmergencyApp = () => {
               </Card>
             )}
             
+            {/* Previsualización para seguimiento */}
             <Card className="p-4 bg-white min-h-[80px] border-2 border-dashed border-gray-200">
               <h4 className="text-sm font-medium text-gray-600 mb-2">Tu respuesta:</h4>
               {transcript ? (
