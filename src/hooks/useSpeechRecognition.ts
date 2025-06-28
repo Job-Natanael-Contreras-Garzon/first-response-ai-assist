@@ -1,29 +1,26 @@
 
 import { useState, useEffect, useRef } from 'react';
+import SpeechRecognition, { useSpeechRecognition as useReactSpeechRecognition } from 'react-speech-recognition';
 
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
+// Detectar navegador una sola vez al cargar el módulo
+const detectBrowser = () => {
+  const isBrave = typeof (navigator as typeof navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave !== 'undefined';
+  const userAgent = navigator.userAgent;
+  const isBraveDetected = isBrave || userAgent.includes('Brave');
+  const isChrome = userAgent.includes('Chrome') && !isBraveDetected;
+  const isEdge = userAgent.includes('Edg');
+  const isFirefox = userAgent.includes('Firefox');
+  
+  return {
+    isBraveDetected,
+    isChrome,
+    isEdge,
+    isFirefox,
+    browserName: isBraveDetected ? 'Brave' : isChrome ? 'Chrome' : isEdge ? 'Edge' : isFirefox ? 'Firefox' : 'Desconocido'
+  };
+};
 
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message: string;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onstart: ((this: SpeechRecognition, ev: Event) => void) | null;
-  onend: ((this: SpeechRecognition, ev: Event) => void) | null;
-  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
-  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => void) | null;
-}
+const BROWSER_INFO = detectBrowser();
 
 interface SpeechRecognitionHook {
   isListening: boolean;
@@ -40,147 +37,125 @@ interface SpeechRecognitionHook {
 }
 
 export const useSpeechRecognition = (): SpeechRecognitionHook => {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isManuallyStoppedRef = useRef(false);
 
-  const browserSupportsSpeechRecognition = 
-    'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+  // Usar el hook oficial de react-speech-recognition
+  const {
+    transcript,
+    interimTranscript,
+    finalTranscript,
+    resetTranscript: resetOfficialTranscript,
+    listening,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable
+  } = useReactSpeechRecognition();
+
+  // Debug: Log todos los estados del hook oficial
+  useEffect(() => {
+    console.log('🔍 Estados del hook oficial:', {
+      transcript: transcript || '(vacío)',
+      interimTranscript: interimTranscript || '(vacío)',
+      finalTranscript: finalTranscript || '(vacío)',
+      listening,
+      browserSupportsSpeechRecognition,
+      isMicrophoneAvailable
+    });
+  }, [transcript, interimTranscript, finalTranscript, listening, browserSupportsSpeechRecognition, isMicrophoneAvailable]);
+
+  // Log de navegador detectado una sola vez
+  useEffect(() => {
+    console.log(`🔍 Navegador detectado: ${BROWSER_INFO.browserName}`, BROWSER_INFO);
+  }, []);
 
   useEffect(() => {
     if (!browserSupportsSpeechRecognition) return;
 
+    // Debug: Verificar que SpeechRecognition esté disponible
+    console.log('🔍 SpeechRecognition global:', {
+      SpeechRecognition: typeof SpeechRecognition,
+      startListening: typeof SpeechRecognition.startListening,
+      stopListening: typeof SpeechRecognition.stopListening,
+      browserSupportsSpeechRecognition
+    });
+
     // Immediately request microphone permissions
     const initializeMicrophone = async () => {
       try {
+        console.log('🎤 Solicitando permisos iniciales...');
         // Request microphone access upfront
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setHasPermission(true);
-        console.log('Permisos de micrófono obtenidos exitosamente');
+        console.log('✅ Permisos de micrófono obtenidos exitosamente');
+        
+        // Detener el stream inmediatamente - solo necesitábamos el permiso
+        stream.getTracks().forEach(track => track.stop());
       } catch (error) {
-        console.error('Error al obtener permisos de micrófono:', error);
+        console.error('❌ Error al obtener permisos de micrófono:', error);
         setHasPermission(false);
         setError('Necesitas permitir el acceso al micrófono para usar esta función. Por favor recarga la página y permite el acceso.');
       }
     };
 
     initializeMicrophone();
+  }, [browserSupportsSpeechRecognition]);
 
-    const SpeechRecognition = 
-      (window as typeof globalThis & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition || 
-      window.SpeechRecognition;
-    
-    recognitionRef.current = new SpeechRecognition();
-    const recognition = recognitionRef.current;
+  // Monitorear estado del micrófono
+  useEffect(() => {
+    if (isMicrophoneAvailable === false) {
+      setHasPermission(false);
+      setError('Micrófono no disponible. Verifica que esté conectado y que tengas permisos.');
+    } else if (isMicrophoneAvailable === true) {
+      setHasPermission(true);
+      setError(null);
+    }
+  }, [isMicrophoneAvailable]);
 
-    // Configuración optimizada para localhost
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'es-ES';
-    recognition.maxAlternatives = 1;
+  // Log de transcripción en tiempo real
+  useEffect(() => {
+    if (interimTranscript) {
+      console.log('⏳ Texto temporal:', interimTranscript);
+    }
+  }, [interimTranscript]);
 
-    recognition.onstart = () => {
+  useEffect(() => {
+    if (finalTranscript) {
+      console.log('✅ Texto final reconocido:', finalTranscript);
+    }
+  }, [finalTranscript]);
+
+  // Manejo de timeouts para evitar sesiones colgadas
+  useEffect(() => {
+    if (listening) {
       console.log('🎤 Reconocimiento de voz iniciado');
-      setIsListening(true);
       setError(null);
       isManuallyStoppedRef.current = false;
       
       // Timeout más corto para entorno local
       timeoutRef.current = setTimeout(() => {
-        if (recognitionRef.current && !isManuallyStoppedRef.current) {
+        if (listening && !isManuallyStoppedRef.current) {
           console.log('⏰ Auto-deteniendo reconocimiento por timeout (15s)');
-          recognition.stop();
+          SpeechRecognition.stopListening();
         }
-      }, 15000); // Reducido a 15 segundos para localhost
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let currentInterimTranscript = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcriptPart = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcriptPart + ' ';
-        } else {
-          currentInterimTranscript += transcriptPart;
-        }
-      }
-
-      // Update interim transcript for real-time display
-      setInterimTranscript(currentInterimTranscript);
-      
-      // Update final transcript
-      if (finalTranscript) {
-        setTranscript(prev => (prev + finalTranscript).trim());
-        setInterimTranscript(''); // Clear interim when we have final
-        console.log('✅ Texto final reconocido:', finalTranscript.trim());
-      }
-
-      if (currentInterimTranscript) {
-        console.log('⏳ Texto temporal:', currentInterimTranscript);
-      }
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('❌ Error en reconocimiento de voz:', event.error);
-      setIsListening(false);
-      setInterimTranscript('');
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      
-      // Manejo simple de errores - sin reintentos automáticos
-      switch (event.error) {
-        case 'not-allowed':
-          setError('Permisos de micrófono denegados. Recarga la página y permite el acceso al micrófono.');
-          setHasPermission(false);
-          break;
-        case 'no-speech':
-          setError('No se detectó voz. Haz clic en el micrófono e intenta hablar de nuevo.');
-          break;
-        case 'network':
-          setError('Error de conexión. Para localhost, verifica que estés usando HTTPS o que el navegador permita el micrófono en HTTP local.');
-          break;
-        case 'aborted':
-          console.log('🛑 Reconocimiento abortado por el usuario');
-          // No mostrar error para cancelaciones manuales
-          break;
-        case 'audio-capture':
-          setError('No se puede acceder al micrófono. Verifica que esté conectado y no esté siendo usado por otra aplicación.');
-          break;
-        default:
-          setError(`Error de reconocimiento: ${event.error}. Intenta de nuevo.`);
-      }
-    };
-
-    recognition.onend = () => {
+      }, 15000); // 15 segundos optimizado para localhost
+    } else {
       console.log('🔴 Reconocimiento de voz terminado');
-      setIsListening(false);
-      setInterimTranscript('');
       
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-    };
+    }
 
     return () => {
-      if (recognition) {
-        recognition.stop();
-      }
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
-  }, [browserSupportsSpeechRecognition]);
+  }, [listening]);
 
   const requestMicrophonePermission = async (): Promise<void> => {
     try {
@@ -204,7 +179,20 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     
     // Verificar soporte del navegador
     if (!browserSupportsSpeechRecognition) {
-      setError('Tu navegador no soporta reconocimiento de voz. Usa Chrome, Edge o Safari.');
+      const errorMsg = 'Tu navegador no soporta reconocimiento de voz. Usa Chrome, Edge o Safari.';
+      console.error('❌', errorMsg);
+      setError(errorMsg);
+      return;
+    }
+
+    console.log('✅ Navegador soporta reconocimiento de voz');
+    console.log('🔍 Estado actual - isMicrophoneAvailable:', isMicrophoneAvailable);
+    console.log('🔍 Estado actual - hasPermission:', hasPermission);
+    console.log('🔍 Estado actual - listening:', listening);
+
+    // Verificar que no estemos ya escuchando
+    if (listening) {
+      console.log('⚠️ Ya estamos escuchando, ignorando solicitud duplicada');
       return;
     }
 
@@ -213,6 +201,9 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       console.log('📋 Solicitando permisos primero...');
       await requestMicrophonePermission();
       
+      // Pequeña pausa para que se actualice el estado
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Verificar el estado actual después de la solicitud
       if (hasPermission === false) {
         console.log('❌ Permisos denegados, no se puede continuar');
@@ -220,42 +211,55 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
       }
     }
 
-    // Verificar que no estemos ya escuchando
-    if (isListening) {
-      console.log('⚠️ Ya estamos escuchando, ignorando solicitud duplicada');
-      return;
-    }
-
-    if (recognitionRef.current) {
-      try {
-        console.log('🎯 Iniciando reconocimiento de voz...');
-        setError(null);
-        setTranscript('');
-        setInterimTranscript('');
-        isManuallyStoppedRef.current = false;
-        
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error('❌ Error al iniciar reconocimiento:', err);
-        setError('No se pudo iniciar el reconocimiento de voz. Intenta de nuevo.');
+    try {
+      console.log('🎯 Iniciando reconocimiento de voz con librería oficial...');
+      setError(null);
+      isManuallyStoppedRef.current = false;
+      
+      // Usar la función oficial directamente
+      console.log('📞 Llamando a SpeechRecognition.startListening...');
+      
+      SpeechRecognition.startListening({
+        continuous: false, // Una sesión por vez para evitar problemas de red
+        language: 'es-ES', // Idioma español
+        interimResults: true // Transcripción en tiempo real
+      });
+      
+      console.log('✅ Comando startListening ejecutado');
+      
+    } catch (err) {
+      console.error('❌ Error al iniciar reconocimiento:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      // Manejo de errores específicos por navegador
+      if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+        if (BROWSER_INFO.isBraveDetected) {
+          setError('Error de conexión en Brave. Sigue estos pasos:\n1. Ve a brave://settings/content/microphone\n2. Agrega http://localhost:8081 a sitios permitidos\n3. Desactiva Brave Shields en localhost\n4. O usa los scripts start-brave-dev.bat incluidos');
+        } else {
+          setError(`Error de conexión en ${BROWSER_INFO.browserName}. Para localhost:\n1. Usa HTTPS o permite micrófono en configuraciones\n2. Prueba con los scripts incluidos: start-chrome-dev.bat\n3. Verifica que localhost esté en sitios permitidos`);
+        }
+      } else if (errorMessage.includes('not-allowed') || errorMessage.includes('denied')) {
+        setError('Permisos de micrófono denegados. Recarga la página y permite el acceso cuando aparezca el popup.');
+        setHasPermission(false);
+      } else {
+        if (BROWSER_INFO.isBraveDetected) {
+          setError(`Error en Brave: ${errorMessage}. Soluciones:\n1. Desactiva Brave Shields para localhost\n2. Usa Chrome para desarrollo\n3. Ejecuta start-brave-dev.bat con flags especiales`);
+        } else {
+          setError(`Error de reconocimiento en ${BROWSER_INFO.browserName}: ${errorMessage}. Intenta:\n1. Recargar la página\n2. Verificar permisos de micrófono\n3. Usar scripts de desarrollo incluidos`);
+        }
       }
-    } else {
-      setError('Sistema de reconocimiento no disponible. Recarga la página.');
     }
   };
 
   const stopListening = (): void => {
     console.log('🛑 Deteniendo reconocimiento de voz manualmente...');
     
-    if (recognitionRef.current) {
-      isManuallyStoppedRef.current = true;
-      setIsListening(false);
-      recognitionRef.current.stop();
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+    isManuallyStoppedRef.current = true;
+    SpeechRecognition.stopListening();
+    
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
@@ -263,16 +267,14 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     console.log('🔄 Reiniciando transcript completamente...');
     
     // Detener cualquier reconocimiento en curso
-    if (recognitionRef.current && isListening) {
+    if (listening) {
       isManuallyStoppedRef.current = true;
-      recognitionRef.current.stop();
+      SpeechRecognition.stopListening();
     }
     
     // Limpiar todos los estados
-    setTranscript('');
-    setInterimTranscript('');
+    resetOfficialTranscript();
     setError(null);
-    setIsListening(false);
     
     // Limpiar timeouts pendientes
     if (timeoutRef.current) {
@@ -283,12 +285,11 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
 
   const clearTranscript = (): void => {
     console.log('🧹 Limpiando transcripts...');
-    setTranscript('');
-    setInterimTranscript('');
+    resetOfficialTranscript();
   };
 
   return {
-    isListening,
+    isListening: listening,
     transcript,
     interimTranscript,
     startListening,
@@ -301,11 +302,3 @@ export const useSpeechRecognition = (): SpeechRecognitionHook => {
     requestMicrophonePermission
   };
 };
-
-// Extend Window interface for TypeScript
-declare global {
-  interface Window {
-    webkitSpeechRecognition: new () => SpeechRecognition;
-    SpeechRecognition: new () => SpeechRecognition;
-  }
-}
