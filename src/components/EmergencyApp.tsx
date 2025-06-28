@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { emergencyAI, EmergencyAnalysis } from '@/services/emergencyAI';
-import { Phone, Mic, MicOff, AlertTriangle, Heart, Shield } from 'lucide-react';
+import { Phone, Mic, MicOff, AlertTriangle, Heart, Shield, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling';
@@ -15,6 +15,8 @@ const EmergencyApp = () => {
   const [emergencyState, setEmergencyState] = useState<EmergencyState>('idle');
   const [analysis, setAnalysis] = useState<EmergencyAnalysis | null>(null);
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [questionIndex, setQuestionIndex] = useState(0);
   
   const {
     isListening,
@@ -22,7 +24,8 @@ const EmergencyApp = () => {
     startListening,
     stopListening,
     resetTranscript,
-    browserSupportsSpeechRecognition
+    browserSupportsSpeechRecognition,
+    error: speechError
   } = useSpeechRecognition();
 
   const { speak, isSpeaking, cancel } = useSpeechSynthesis();
@@ -31,21 +34,41 @@ const EmergencyApp = () => {
     console.log('Iniciando emergencia...');
     setEmergencyState('listening');
     setConversationHistory([]);
+    setCurrentQuestion('');
+    setQuestionIndex(0);
     resetTranscript();
+    cancel(); // Detener cualquier audio previo
     
     // Mensaje inicial del sistema
-    speak('¿Qué está sucediendo? Describe la emergencia por favor.');
+    const initialMessage = '¿Qué está sucediendo? Describe la emergencia por favor.';
+    speak(initialMessage);
+    setConversationHistory([`Sistema: ${initialMessage}`]);
     
     // Esperar un momento antes de iniciar la escucha
     setTimeout(() => {
-      startListening();
-    }, 3000);
+      if (!isSpeaking) {
+        startListening();
+      }
+    }, 4000);
   };
 
   const handleStopListening = () => {
+    console.log('Botón detener presionado. Transcript:', transcript);
     stopListening();
+    
     if (transcript.trim()) {
-      processEmergencyDescription(transcript);
+      if (emergencyState === 'listening') {
+        processEmergencyDescription(transcript.trim());
+      } else if (emergencyState === 'followup') {
+        processFollowUpAnswer(transcript.trim());
+      }
+    } else {
+      toast.error('No se detectó ningún texto. Inténtalo de nuevo.');
+      // Reiniciar la escucha si no hay texto
+      setTimeout(() => {
+        resetTranscript();
+        startListening();
+      }, 1000);
     }
   };
 
@@ -54,19 +77,23 @@ const EmergencyApp = () => {
     setConversationHistory(prev => [...prev, `Usuario: ${description}`]);
     
     try {
+      console.log('Analizando emergencia:', description);
       const result = await emergencyAI.analyzeEmergency(description);
       setAnalysis(result);
       
       if (result.additionalQuestions && result.additionalQuestions.length > 0) {
         setEmergencyState('followup');
+        setQuestionIndex(0);
         const question = result.additionalQuestions[0];
+        setCurrentQuestion(question);
         speak(question);
         setConversationHistory(prev => [...prev, `Sistema: ${question}`]);
         
+        // Esperar antes de iniciar nueva escucha
         setTimeout(() => {
           resetTranscript();
           startListening();
-        }, 4000);
+        }, question.length * 80 + 2000); // Tiempo basado en longitud + buffer
       } else {
         setEmergencyState('response');
         provideFirstAidInstructions(result);
@@ -78,38 +105,66 @@ const EmergencyApp = () => {
     }
   };
 
+  const processFollowUpAnswer = async (answer: string) => {
+    setConversationHistory(prev => [...prev, `Usuario: ${answer}`]);
+    
+    if (analysis && analysis.additionalQuestions) {
+      const nextQuestionIndex = questionIndex + 1;
+      
+      if (nextQuestionIndex < analysis.additionalQuestions.length) {
+        // Hay más preguntas
+        setQuestionIndex(nextQuestionIndex);
+        const nextQuestion = analysis.additionalQuestions[nextQuestionIndex];
+        setCurrentQuestion(nextQuestion);
+        speak(nextQuestion);
+        setConversationHistory(prev => [...prev, `Sistema: ${nextQuestion}`]);
+        
+        setTimeout(() => {
+          resetTranscript();
+          startListening();
+        }, nextQuestion.length * 80 + 2000);
+      } else {
+        // No hay más preguntas, proceder con primeros auxilios
+        setEmergencyState('response');
+        provideFirstAidInstructions(analysis);
+      }
+    }
+  };
+
   const provideFirstAidInstructions = (analysis: EmergencyAnalysis) => {
     const instructions = analysis.firstAid.join('. ');
     speak(`Esto es lo que debes hacer: ${instructions}`);
     
-    setConversationHistory(prev => [...prev, `Sistema: ${instructions}`]);
+    setConversationHistory(prev => [...prev, `Sistema: Primeros auxilios - ${instructions}`]);
     
     if (analysis.callAmbulance) {
       setTimeout(() => {
         callAmbulance();
-      }, instructions.length * 100); // Ajustar tiempo basado en longitud
+      }, instructions.length * 100 + 3000);
     }
   };
 
   const callAmbulance = () => {
     setEmergencyState('calling');
-    speak('Llamando a la ambulancia automáticamente. Mantén la calma, la ayuda está en camino.');
+    const message = 'Llamando a la ambulancia automáticamente. Mantén la calma, la ayuda está en camino.';
+    speak(message);
     
-    // Simular llamada a ambulancia
     toast.success('Ambulancia llamada automáticamente - Ayuda en camino');
     
-    // En una app real, aquí harías la llamada real
     setTimeout(() => {
       if (window.confirm('¿Deseas realizar una llamada real a emergencias?')) {
         window.location.href = 'tel:911';
       }
-    }, 3000);
+    }, 5000);
   };
 
   const resetApp = () => {
+    console.log('Reiniciando aplicación');
     setEmergencyState('idle');
     setAnalysis(null);
     setConversationHistory([]);
+    setCurrentQuestion('');
+    setQuestionIndex(0);
     resetTranscript();
     cancel();
   };
@@ -124,11 +179,12 @@ const EmergencyApp = () => {
     }
   };
 
+  // Mostrar errores de reconocimiento de voz
   useEffect(() => {
-    if (!isListening && emergencyState === 'listening' && transcript.trim()) {
-      processEmergencyDescription(transcript);
+    if (speechError) {
+      toast.error(`Error de voz: ${speechError}`);
     }
-  }, [isListening, transcript, emergencyState]);
+  }, [speechError]);
 
   if (!browserSupportsSpeechRecognition) {
     return (
@@ -175,7 +231,7 @@ const EmergencyApp = () => {
             
             <Button
               onClick={handleEmergencyStart}
-              className="w-48 h-48 rounded-full bg-red-600 hover:bg-red-700 text-white text-xl font-bold shadow-2xl emergency-pulse transform hover:scale-105 transition-all duration-200"
+              className="w-48 h-48 rounded-full bg-red-600 hover:bg-red-700 text-white text-xl font-bold shadow-2xl transform hover:scale-105 transition-all duration-200"
             >
               <div className="text-center">
                 <AlertTriangle className="h-16 w-16 mx-auto mb-2" />
@@ -194,31 +250,51 @@ const EmergencyApp = () => {
           <div className="text-center space-y-6 pt-8">
             <div className="space-y-4">
               <div className="relative">
-                <Mic className="h-20 w-20 text-red-500 mx-auto voice-wave" />
-                <div className="absolute inset-0 border-4 border-red-500 rounded-full animate-ping opacity-20"></div>
+                <Mic className={`h-20 w-20 mx-auto ${isListening ? 'text-red-500' : 'text-gray-400'}`} />
+                {isListening && (
+                  <div className="absolute inset-0 border-4 border-red-500 rounded-full animate-ping opacity-20"></div>
+                )}
               </div>
               <h2 className="text-xl font-bold text-gray-800">
-                Escuchando...
+                {isListening ? 'Escuchando...' : 'Preparando para escuchar'}
               </h2>
               <p className="text-gray-600">
                 Describe qué está pasando
               </p>
+              {isSpeaking && (
+                <p className="text-sm text-blue-600 flex items-center justify-center">
+                  <Volume2 className="h-4 w-4 mr-1" />
+                  Sistema hablando...
+                </p>
+              )}
             </div>
             
-            {transcript && (
-              <Card className="p-4 bg-white">
-                <p className="text-sm text-gray-700">{transcript}</p>
-              </Card>
-            )}
+            {/* Previsualización del texto en tiempo real */}
+            <Card className="p-4 bg-white min-h-[100px] border-2 border-dashed border-gray-200">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Texto reconocido:</h4>
+              {transcript ? (
+                <p className="text-gray-800">{transcript}</p>
+              ) : (
+                <p className="text-gray-400 italic">Esperando tu respuesta...</p>
+              )}
+            </Card>
             
-            <Button
-              onClick={handleStopListening}
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-            >
-              <MicOff className="h-4 w-4 mr-2" />
-              Detener y Analizar
-            </Button>
+            <div className="space-y-2">
+              <Button
+                onClick={handleStopListening}
+                disabled={!isListening || !transcript.trim()}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                <MicOff className="h-4 w-4 mr-2" />
+                Detener y Analizar
+              </Button>
+              
+              {speechError && (
+                <p className="text-sm text-red-600">
+                  Error: {speechError}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -238,15 +314,39 @@ const EmergencyApp = () => {
         {/* Estado Seguimiento */}
         {emergencyState === 'followup' && (
           <div className="text-center space-y-6 pt-8">
-            <Mic className="h-16 w-16 text-orange-500 mx-auto voice-wave" />
+            <div className="relative">
+              <Mic className={`h-16 w-16 mx-auto ${isListening ? 'text-orange-500' : 'text-gray-400'}`} />
+              {isListening && (
+                <div className="absolute inset-0 border-4 border-orange-500 rounded-full animate-ping opacity-20"></div>
+              )}
+            </div>
             <h2 className="text-xl font-bold text-gray-800">
               Necesito más información
             </h2>
-            {transcript && (
-              <Card className="p-4 bg-white">
-                <p className="text-sm text-gray-700">{transcript}</p>
+            {currentQuestion && (
+              <Card className="p-4 bg-orange-50 border-orange-200">
+                <p className="text-orange-800 font-medium">{currentQuestion}</p>
               </Card>
             )}
+            
+            {/* Previsualización para seguimiento */}
+            <Card className="p-4 bg-white min-h-[80px] border-2 border-dashed border-gray-200">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Tu respuesta:</h4>
+              {transcript ? (
+                <p className="text-gray-800">{transcript}</p>
+              ) : (
+                <p className="text-gray-400 italic">Esperando respuesta...</p>
+              )}
+            </Card>
+            
+            <Button
+              onClick={handleStopListening}
+              disabled={!isListening || !transcript.trim()}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              <MicOff className="h-4 w-4 mr-2" />
+              Detener y Continuar
+            </Button>
           </div>
         )}
 
@@ -315,7 +415,7 @@ const EmergencyApp = () => {
         {conversationHistory.length > 0 && (
           <Card className="mt-6 p-4 bg-gray-50">
             <h4 className="font-medium text-gray-800 mb-2">Conversación:</h4>
-            <div className="space-y-1 text-sm">
+            <div className="space-y-1 text-sm max-h-40 overflow-y-auto">
               {conversationHistory.map((message, index) => (
                 <p key={index} className={
                   message.startsWith('Usuario:') ? 'text-blue-700' : 'text-gray-700'
