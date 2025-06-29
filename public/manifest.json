@@ -1,0 +1,25 @@
+{
+  "short_name": "AI Life",
+  "name": "AI Life - Primeros Auxilios con IA",
+  "icons": [
+    {
+      "src": "/icons/AILife.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/AILife.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "scope": "/",
+  "description": "Aplicación de emergencias médicas con IA para primeros auxilios y asistencia inmediata"
+}
