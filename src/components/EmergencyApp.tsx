@@ -6,6 +6,8 @@ import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { backendAPI, ChatResponse } from '@/services/backendAPI';
 import { AlertTriangle, Ambulance, User } from 'lucide-react';
 import { toast } from 'sonner';
+
+import MapComponent from "../pages/MapComponent";
 import CategoryCarousel from './CategoryCarousel';
 import { EmergencyCategory, categories } from '@/data/emergencyCategories';
 import EmergencyButton from './EmergencyButton';
@@ -493,6 +495,8 @@ const EmergencyApp = () => {
               selectedCategoryId={selectedCategory?.id || null}
             />
           </div>
+          
+          <MapComponent />
 
           {/* Bottom Navigation */}
           <BottomNavigation onEmergencyStart={handleEmergencyStart} />
