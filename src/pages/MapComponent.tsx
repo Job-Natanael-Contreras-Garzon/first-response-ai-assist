@@ -33,7 +33,7 @@ const MapComponent: React.FC<MapComponentProps> = () => {
 
   const mapContainerStyle = {
     width: '100%',
-    height: '250px',
+    height: '200px',
     borderRadius: '16px',
     overflow: 'hidden',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
@@ -165,37 +165,25 @@ const MapComponent: React.FC<MapComponentProps> = () => {
     return () => clearTimeout(timer);
   }, [isLoaded, loadError, userLocation]);
 
-  if (loadError) return (
-    <div className="text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">
-      Error al cargar los mapas: {loadError.message}. Por favor, verifica tu conexión a internet o la configuración de tu API Key.
-    </div>
-  );
-  if (!isLoaded) return (
-    <div className="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
-      <div className="animate-pulse">Cargando Mapas...</div>
-    </div>
-  );
+  if (loadError) return <div>Error al cargar los mapas: {loadError.message}. Por favor, verifica tu conexión a internet o la configuración de tu API Key.</div>;
+  if (!isLoaded) return <div>Cargando Mapas...</div>;
 
   return (
-    <div className="w-full">
-      {error && (
-        <div className="text-white bg-red-500 p-3 rounded-lg mb-4 text-sm">
-          {error}
-        </div>
-      )}
+    <div style={{ padding: '20px', maxWidth: '800px', margin: 'auto', fontFamily: 'Arial, sans-serif' }}>
+      {error && <div style={{ color: 'white', backgroundColor: '#f44336', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>{error}</div>}
 
       {!userLocation && !error && (
-        <div className="bg-cyan-50 border border-cyan-200 p-4 rounded-lg text-center mb-4">
-          <p className="text-cyan-800 font-medium">Esperando ubicación del usuario...</p>
-          <p className="text-cyan-600 text-sm mt-1">Asegúrate de conceder permisos de geolocalización a tu navegador.</p>
+        <div style={{ marginTop: '10px', padding: '15px', border: '1px solid #b3e0ff', backgroundColor: '#e0f7fa', borderRadius: '5px', textAlign: 'center' }}>
+          <p style={{ color: '#006064' }}>Esperando ubicación del usuario...</p>
+          <p style={{ color: '#006064', fontSize: '0.9em' }}>Asegúrate de conceder permisos de geolocalización a tu navegador.</p>
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden shadow-lg">
+      <div style={{borderRadius: '8px', overflow: 'hidden' }}>
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={userLocation || defaultCenter}
-          zoom={userLocation ? 14 : 10}
+          zoom={userLocation ? 14 : 10} // Ajusta el zoom inicial si no hay ubicación de usuario
           onLoad={onLoad}
           onUnmount={onUnmount}
           options={mapOptions}
@@ -208,11 +196,11 @@ const MapComponent: React.FC<MapComponentProps> = () => {
           )}
           {nearbyHospitals.map((hospital, index) => (
             <MarkerF
-              key={index}
+              key={index} // Es mejor usar un ID único del hospital si estuviera disponible
               position={hospital.location}
               title={hospital.name}
               icon={{
-                url: 'http://maps.google.com/mapfiles/ms/icons/hospitals.png',
+                url: 'http://maps.google.com/mapfiles/ms/icons/hospitals.png', // Icono de hospital
                 scaledSize: new window.google.maps.Size(32, 32),
               }}
             />
@@ -220,11 +208,6 @@ const MapComponent: React.FC<MapComponentProps> = () => {
         </GoogleMap>
       </div>
 
-      {nearbyHospitals.length > 0 && (
-        <div className="mt-4 text-sm text-gray-600 text-center">
-          Se encontraron {nearbyHospitals.length} hospitales cercanos
-        </div>
-      )}
     </div>
   );
 };
