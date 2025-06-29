@@ -15,9 +15,9 @@ const EmergencyButton: React.FC<EmergencyButtonProps> = ({
     return (
       <Button
         onClick={onEmergencyStart}
-        className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700"
+        className="w-16 h-16 rounded-full bg-gradient-to-br from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 shadow-lg"
       >
-        <Mic className="h-8 w-8" />
+        <Mic className="h-8 w-8 text-white" />
       </Button>
     );
   }
@@ -25,7 +25,7 @@ const EmergencyButton: React.FC<EmergencyButtonProps> = ({
   return (
     <Button
       onClick={onEmergencyStart}
-      className="emergency-btn-responsive rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl transform hover:scale-105 transition-all duration-200 border-4 border-red-500"
+      className="emergency-btn-responsive rounded-full bg-gradient-to-br from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white shadow-2xl transform hover:scale-105 transition-all duration-200 border-4 border-rose-300/40"
     >
       <Phone className="h-12 w-12 sm:h-16 sm:w-16" />
     </Button>

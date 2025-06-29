@@ -14,7 +14,6 @@ import CallingScreen from './CallingScreen';
 import ConversationHistory from './ConversationHistory';
 import BottomNavigation from './BottomNavigation';
 import ResponsiveLayout from './ResponsiveLayout';
-import TestSimulator from './TestSimulator';
 import ContinuousConversation from './ContinuousConversation';
 
 interface ConversationMessage {
@@ -128,28 +127,6 @@ const EmergencyApp = () => {
     }
   };
 
-  const handleSimulateEmergency = (text: string) => {
-    console.log('Simulando emergencia:', text);
-    setShowListeningModal(false);
-    processUserInput(text);
-  };
-
-  // Función para probar la conectividad con el backend
-  const handleTestConnection = async () => {
-    try {
-      toast.loading('Probando conectividad con el backend...');
-      const isConnected = await backendAPI.testConnection();
-      if (isConnected) {
-        toast.success('✅ Conectividad exitosa con el backend');
-      } else {
-        toast.error('❌ Error de conectividad. Usando respuestas locales.');
-      }
-    } catch (error) {
-      console.error('Error al probar conectividad:', error);
-      toast.error('❌ Error al probar la conectividad');
-    }
-  };
-
   const callAmbulance = () => {
     setEmergencyState('calling');
     const message = 'Llamando a la ambulancia automáticamente. Mantén la calma, la ayuda está en camino.';
@@ -258,11 +235,11 @@ const EmergencyApp = () => {
         <>
           {/* Header */}
           <div className="text-center py-6 sm:py-8 px-4">
-            <h1 className="text-responsive-xl font-bold text-gray-300 mb-2">AYUDA</h1>
-            <p className="text-gray-400 px-4 text-sm sm:text-base">
+            <h1 className="text-responsive-xl font-bold text-slate-700 mb-2">AYUDA</h1>
+            <p className="text-slate-600 px-4 text-sm sm:text-base">
               ¡Siempre estamos aquí para emergencias!
             </p>
-            <p className="text-gray-400 px-4 text-sm sm:text-base">
+            <p className="text-slate-600 px-4 text-sm sm:text-base">
               ¡Toca para iniciar el protocolo de emergencia!
             </p>
           </div>
@@ -275,27 +252,6 @@ const EmergencyApp = () => {
           {/* Category Carousel */}
           <div className="pb-6">
             <CategoryCarousel />
-          </div>
-
-          {/* Test Simulator - Solo visible en desarrollo */}
-          <div className="pb-6 space-y-4">
-            <TestSimulator onSimulate={handleSimulateEmergency} />
-            
-            {/* Botón de prueba de conectividad - temporal */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-900 mb-2">🔧 Test de Conectividad</h3>
-              <Button 
-                onClick={handleTestConnection}
-                variant="outline"
-                size="sm"
-                className="text-blue-700 border-blue-300 hover:bg-blue-100"
-              >
-                Probar Backend API
-              </Button>
-              <p className="text-xs text-blue-600 mt-2">
-                Verifica si el backend está funcionando correctamente
-              </p>
-            </div>
           </div>
 
           {/* Bottom Navigation */}
@@ -362,7 +318,7 @@ const EmergencyApp = () => {
       <div className="fixed bottom-4 right-4 z-50">
         <Button
           onClick={callAmbulance}
-          className="bg-red-600 hover:bg-red-700 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center"
+          className="bg-rose-500 hover:bg-rose-600 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center"
           size="lg"
         >
           <Phone className="w-6 h-6" />

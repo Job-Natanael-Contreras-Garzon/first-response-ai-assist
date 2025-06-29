@@ -75,26 +75,26 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-sky-200 via-cyan-100 to-teal-100 flex flex-col">
       {/* Header con navegación */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-800">
+      <div className="flex justify-between items-center p-4 border-b border-cyan-200 bg-white/50 backdrop-blur-sm">
         <Button
           onClick={handleGoBack}
           variant="ghost"
           size="sm"
-          className="text-gray-400 hover:text-white"
+          className="text-slate-600 hover:text-slate-800 hover:bg-white/70"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver
         </Button>
         
-        <h1 className="text-lg font-semibold text-white">Conversación de Emergencia</h1>
+        <h1 className="text-lg font-semibold text-slate-700">Conversación de Emergencia</h1>
         
         <Button
           onClick={handleGoHome}
           variant="ghost"
           size="sm"
-          className="text-gray-400 hover:text-white"
+          className="text-slate-600 hover:text-slate-800 hover:bg-white/70"
         >
           <Home className="h-4 w-4 mr-2" />
           Inicio
@@ -102,10 +102,10 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
       </div>
 
       {/* Botón de emergencia fijo y prominente */}
-      <div className="p-4 border-b border-gray-800">
+      <div className="p-4 border-b border-cyan-200 bg-white/30">
         <Button 
           onClick={callEmergency}
-          className="w-full bg-red-600 hover:bg-red-700 text-white py-4 text-lg font-bold"
+          className="w-full bg-gradient-to-br from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white py-4 text-lg font-bold shadow-lg"
           size="lg"
         >
           <Phone className="w-6 h-6 mr-3" />
@@ -117,27 +117,31 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-lg p-4 ${
+            <div className={`max-w-[80%] rounded-lg p-4 shadow-md ${
               message.type === 'user' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-800 text-white border border-gray-700'
+                ? 'bg-sky-500 text-white' 
+                : 'bg-white/80 text-slate-700 border border-cyan-200'
             }`}>
               <div className="flex items-start space-x-2">
                 <div className={`rounded-full p-1 ${
-                  message.type === 'user' ? 'bg-blue-500' : 'bg-gray-600'
+                  message.type === 'user' ? 'bg-sky-400' : 'bg-slate-200'
                 }`}>
                   {message.type === 'user' ? (
                     <User className="w-4 h-4 text-white" />
                   ) : (
-                    <Bot className="w-4 h-4 text-white" />
+                    <Bot className="w-4 h-4 text-slate-600" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm opacity-70 mb-1">
+                  <p className={`text-sm opacity-70 mb-1 ${
+                    message.type === 'user' ? 'text-sky-100' : 'text-slate-500'
+                  }`}>
                     {message.type === 'user' ? 'Tú' : 'Asistente de Emergencias'}
                   </p>
                   <p className="text-sm leading-relaxed">{message.message}</p>
-                  <p className="text-xs opacity-50 mt-2">
+                  <p className={`text-xs opacity-50 mt-2 ${
+                    message.type === 'user' ? 'text-sky-100' : 'text-slate-400'
+                  }`}>
                     {message.timestamp.toLocaleTimeString()}
                   </p>
                 </div>
@@ -149,12 +153,12 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
         {/* Indicador de que está escuchando */}
         {isListening && (
           <div className="flex justify-end">
-            <div className="max-w-[80%] bg-blue-600/20 border border-blue-600 rounded-lg p-4">
+            <div className="max-w-[80%] bg-sky-100 border border-sky-300 rounded-lg p-4">
               <div className="flex items-center space-x-2">
                 <div className="animate-pulse">
-                  <Mic className="w-4 h-4 text-blue-400" />
+                  <Mic className="w-4 h-4 text-sky-600" />
                 </div>
-                <p className="text-blue-400 text-sm">
+                <p className="text-sky-700 text-sm">
                   Escuchando... {transcript && `"${transcript}"`}
                 </p>
               </div>
@@ -164,15 +168,15 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
       </div>
 
       {/* Área de entrada */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-4 border-t border-cyan-200 bg-white/50 backdrop-blur-sm">
         <div className="space-y-3">
           <Button
             onClick={handleStartListening}
             disabled={isListening}
-            className={`w-full py-4 text-lg ${
+            className={`w-full py-4 text-lg shadow-md ${
               isListening 
-                ? 'bg-blue-600/50 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700'
+                ? 'bg-sky-300 cursor-not-allowed' 
+                : 'bg-sky-500 hover:bg-sky-600'
             }`}
             size="lg"
           >
@@ -183,7 +187,7 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
           <Button 
             onClick={onReset}
             variant="outline"
-            className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 py-3"
+            className="w-full border-slate-300 text-slate-600 hover:bg-white/70 py-3"
             size="lg"
           >
             Nueva Emergencia
