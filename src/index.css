@@ -149,23 +149,82 @@
   
   /* Emergency button responsive sizing */
   .emergency-btn-responsive {
-    @apply w-48 h-48;
+    width: 12rem !important;
+    height: 12rem !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
   
   @media (min-width: 640px) {
     .emergency-btn-responsive {
-      @apply w-64 h-64;
+      width: 14rem !important;
+      height: 14rem !important;
     }
   }
   
-  /* Bottom navigation responsive */
+  @media (min-width: 768px) {
+    .emergency-btn-responsive {
+      width: 16rem !important;
+      height: 16rem !important;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .emergency-btn-responsive {
+      width: 18rem !important;
+      height: 18rem !important;
+    }
+  }
+  
+  /* Emergency icon responsive sizing - EXTRA GRANDE para móvil */
+  .emergency-icon-responsive {
+    width: 5rem !important;
+    height: 5rem !important;
+  }
+  
+  /* Media queries para tamaños más grandes */
+  @media (min-width: 640px) {
+    .emergency-icon-responsive {
+      width: 6rem !important;
+      height: 6rem !important;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .emergency-icon-responsive {
+      width: 7rem !important;
+      height: 7rem !important;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .emergency-icon-responsive {
+      width: 8rem !important;
+      height: 8rem !important;
+    }
+  }
+  
+  /* Bottom navigation responsive - Más delgado */
   .bottom-nav-responsive {
-    @apply px-2 py-2;
+    @apply px-2 py-1;
   }
   
   @media (min-width: 640px) {
     .bottom-nav-responsive {
-      @apply px-4 py-3;
+      @apply px-4 py-2;
+    }
+  }
+  
+  /* Small button icon responsive sizing */
+  .small-btn-icon-responsive {
+    @apply h-14 w-14;
+  }
+  
+  @media (min-width: 640px) {
+    .small-btn-icon-responsive {
+      @apply h-16 w-16;
     }
   }
   
@@ -194,5 +253,39 @@
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
+  }
+  
+  /* Full height utilities */
+  .full-height {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+  
+  .full-height-safe {
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  
+  .min-full-height {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  
+  .min-full-height-safe {
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  
+  /* Container with bottom navigation spacing */
+  .container-with-nav {
+    height: calc(100vh - 88px); /* 88px = altura aproximada del bottom nav */
+    height: calc(100dvh - 88px);
+    overflow-y: auto;
+  }
+  
+  .container-with-nav-safe {
+    height: calc(100vh - 88px - env(safe-area-inset-bottom));
+    height: calc(100dvh - 88px - env(safe-area-inset-bottom));
+    overflow-y: auto;
   }
 }

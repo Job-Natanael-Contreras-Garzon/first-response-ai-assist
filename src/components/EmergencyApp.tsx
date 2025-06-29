@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { backendAPI, ChatResponse } from '@/services/backendAPI';
-import { AlertTriangle, Phone } from 'lucide-react';
+import { AlertTriangle, Ambulance, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MapComponent from "../pages/MapComponent";
@@ -12,11 +12,10 @@ import CategoryCarousel from './CategoryCarousel';
 import EmergencyButton from './EmergencyButton';
 import ListeningModal from './ListeningModal';
 import EmergencyResponse from './EmergencyResponse';
-import CallingScreen from './CallingScreen';
 import ConversationHistory from './ConversationHistory';
 import BottomNavigation from './BottomNavigation';
 import ResponsiveLayout from './ResponsiveLayout';
-import ContinuousConversation from './ContinuousConversation';
+import ProfilePage from '../pages/ProfilePage';
 
 interface ConversationMessage {
   id: string;
@@ -25,7 +24,7 @@ interface ConversationMessage {
   timestamp: Date;
 }
 
-type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling' | 'conversation';
+type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'conversation' | 'profile';
 
 const EmergencyApp = () => {
   const [emergencyState, setEmergencyState] = useState<EmergencyState>('idle');
@@ -33,6 +32,12 @@ const EmergencyApp = () => {
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [showListeningModal, setShowListeningModal] = useState(false);
+  const [userProfile, setUserProfile] = useState<{
+    fullName?: string;
+    bloodType?: string;
+    allergies?: string[];
+    emergencyContact?: string;
+  } | null>(null);
   
   const {
     isListening,
@@ -58,8 +63,12 @@ const EmergencyApp = () => {
     resetTranscript();
     cancel();
     
-    // Reset backend session
+    // Reset backend session para crear una nueva conversación
     backendAPI.resetSession();
+    console.log('📋 Nueva sesión creada:', backendAPI.getSessionId());
+    
+    // Almacenamos el session_id en sessionStorage para mantener consistencia
+    sessionStorage.setItem('emergency_session_id', backendAPI.getSessionId());
     
     const initialMessage = 'Dime que paso?.';
     speak(initialMessage);
@@ -70,6 +79,11 @@ const EmergencyApp = () => {
         startListening();
       }
     }, 4000);
+  };
+
+  const handleProfileOpen = () => {
+    console.log('Abriendo perfil...');
+    setEmergencyState('profile');
   };
 
   const handleStopListening = () => {
@@ -89,58 +103,100 @@ const EmergencyApp = () => {
   };
 
   const processUserInput = async (userInput: string) => {
-    const isInConversation = emergencyState === 'conversation';
+    // Simplificamos el flujo - ya no distinguimos entre estados de conversación
+    // porque siempre estamos en una conversación continua usando el mismo sessionId
     
     setEmergencyState('analyzing');
     setConversationHistory(prev => [...prev, `Usuario: ${userInput}`]);
     
-    // Si estamos en conversación continua, agregar el mensaje del usuario
-    if (isInConversation) {
-      addMessageToConversation(userInput, 'user');
-    }
-    
     try {
       console.log('Procesando entrada del usuario:', userInput);
-      const response = await backendAPI.sendMessage(userInput);
+      const response = await backendAPI.sendMessage(userInput, userProfile);
       setChatResponse(response);
       
-      // Si estamos en conversación continua, agregar la respuesta y volver a ese estado
-      if (isInConversation) {
-        addMessageToConversation(response.response, 'assistant');
-        setEmergencyState('conversation');
-      } else {
-        setEmergencyState('response');
-      }
+      // Agregamos el mensaje a la conversación para el historial
+      setConversationMessages(prev => [
+        ...prev, 
+        {
+          id: Date.now().toString(),
+          type: 'user',
+          message: userInput,
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          message: response.response,
+          timestamp: new Date()
+        }
+      ]);
+      
+      // Siempre vamos a la vista de respuesta
+      setEmergencyState('response');
       
       // Speak the response
       speak(response.response);
       setConversationHistory(prev => [...prev, `Sistema: ${response.response}`]);
       
+      // Cerrar el modal de escucha
+      setShowListeningModal(false);
+      
     } catch (error) {
       console.error('Error al procesar entrada del usuario:', error);
-      toast.error('No se pudo conectar con el servicio de emergencias. Verifica tu conexión a internet.');
       
-      if (isInConversation) {
-        setEmergencyState('conversation');
-      } else {
-        setEmergencyState('idle');
-        setShowListeningModal(false);
-      }
+      // En lugar de ir a idle, podemos proporcionar una respuesta de fallback
+      // y seguir en el estado de respuesta para permitir continuar la conversación
+      const fallbackResponse = {
+        response: "Lo siento, tuve problemas para conectarme al servicio. Por favor, intenta de nuevo o considera llamar directamente al 911 si es una emergencia."
+      };
+      
+      // Usar respuesta fallback
+      setChatResponse(fallbackResponse);
+      
+      // Agregar mensajes a la conversación
+      setConversationMessages(prev => [
+        ...prev, 
+        {
+          id: Date.now().toString(),
+          type: 'user',
+          message: userInput,
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          message: fallbackResponse.response,
+          timestamp: new Date()
+        }
+      ]);
+      
+      // Ir a la vista de respuesta a pesar del error
+      setEmergencyState('response');
+      
+      // Hablar el mensaje fallback
+      speak(fallbackResponse.response);
+      setConversationHistory(prev => [...prev, `Sistema: ${fallbackResponse.response}`]);
+      
+      // Cerrar el modal de escucha
+      setShowListeningModal(false);
+      
+      // Mostrar toast más informativo
+      toast.error('Problemas de conexión con el servidor. La conversación continuará en modo local.', {
+        duration: 5000,
+      });
     }
   };
 
   const callAmbulance = () => {
-    setEmergencyState('calling');
     const message = 'Llamando a la ambulancia automáticamente. Mantén la calma, la ayuda está en camino.';
     speak(message);
     
     toast.success('Ambulancia llamada automáticamente - Ayuda en camino');
     
-    setTimeout(() => {
-      if (window.confirm('¿Deseas realizar una llamada real a emergencias?')) {
-        window.location.href = 'tel:911';
-      }
-    }, 5000);
+    // Llamar directamente al número de emergencia
+    if (window.confirm('¿Deseas realizar una llamada real a emergencias?')) {
+      window.location.href = 'tel:911';
+    }
   };
 
   const resetApp = () => {
@@ -157,10 +213,7 @@ const EmergencyApp = () => {
 
   const goBackToPreviousState = () => {
     console.log('Volviendo al estado anterior');
-    if (emergencyState === 'calling') {
-      // Si está llamando, volver al estado de respuesta
-      setEmergencyState('response');
-    } else if (emergencyState === 'response') {
+    if (emergencyState === 'response') {
       // Si está en respuesta, volver a escucha
       setEmergencyState('idle');
     } else {
@@ -175,27 +228,46 @@ const EmergencyApp = () => {
   };
 
   const startContinuousConversation = () => {
-    console.log('Iniciando conversación continua');
-    if (chatResponse) {
-      // Agregar la respuesta inicial a la conversación si no existe
-      if (conversationMessages.length === 0) {
-        setConversationMessages([{
-          id: Date.now().toString(),
-          type: 'assistant',
-          message: chatResponse.response,
-          timestamp: new Date()
-        }]);
-      }
-      setEmergencyState('conversation');
+    console.log('Continuando conversación directamente...');
+    // No cambiamos a la vista de conversación continua
+    // En su lugar, iniciamos directamente el modo de escucha
+    
+    // No reiniciamos la sesión del backend para mantener el contexto
+    // El backend mantiene la información por 3 minutos con el mismo ID
+    
+    // Verificamos si el session_id está sincronizado
+    const storedSessionId = sessionStorage.getItem('emergency_session_id');
+    const currentSessionId = backendAPI.getSessionId();
+    
+    if (storedSessionId && storedSessionId !== currentSessionId) {
+      console.log('⚠️ Detectada inconsistencia en session_id. Sincronizando...');
+      console.log(`SessionStorage: ${storedSessionId}`);
+      console.log(`BackendAPI: ${currentSessionId}`);
     }
-  };
-
-  const handleConversationListening = () => {
-    console.log('Iniciando escucha para conversación continua');
+    
+    // Aseguramos que el ID sea consistente para esta conversación
+    console.log('🔄 Continuando con session_id:', currentSessionId);
+    
+    // Primero activamos la escucha para evitar navegación intermedia
+    resetTranscript();
+    cancel();
+    
+    // Pequeña pausa para preparar al usuario
+    const continueMessage = 'Dime más sobre la situación.';
+    
+    // Inmediatamente activamos la escucha y cambiamos el estado
     setEmergencyState('listening');
     setShowListeningModal(true);
+    
+    // Hablar y empezar a escuchar casi inmediatamente
+    speak(continueMessage);
+    
+    // Comenzar a escuchar en paralelo para no perder nada de lo que dice el usuario
     startListening();
   };
+
+  // Ya no necesitamos handleConversationListening, 
+  // lo hemos incorporado en startContinuousConversation
 
   const addMessageToConversation = (message: string, type: 'user' | 'assistant') => {
     const newMessage: ConversationMessage = {
@@ -207,11 +279,46 @@ const EmergencyApp = () => {
     setConversationMessages(prev => [...prev, newMessage]);
   };
 
+  const updateUserProfile = (profile: {
+    fullName?: string;
+    bloodType?: string;
+    allergies?: string[];
+    emergencyContact?: string;
+  } | null) => {
+    setUserProfile(profile);
+  };
+
   useEffect(() => {
     if (speechError) {
       toast.error(`Error de voz: ${speechError}`);
     }
   }, [speechError]);
+  
+  // Ya no cargamos automáticamente los datos del perfil al montar el componente
+  // Los datos serán cargados únicamente cuando el usuario presione el botón "CARGAR DATOS"
+
+  // Escuchar cambios en localStorage para actualizar el perfil en tiempo real
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'emergencyProfile') {
+        try {
+          if (e.newValue) {
+            setUserProfile(JSON.parse(e.newValue));
+            console.log('Perfil actualizado en EmergencyApp:', JSON.parse(e.newValue));
+          } else {
+            setUserProfile(null);
+          }
+        } catch (error) {
+          console.error('Error al actualizar perfil en EmergencyApp:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   if (!browserSupportsSpeechRecognition) {
     return (
@@ -232,27 +339,36 @@ const EmergencyApp = () => {
 
   return (
     <ResponsiveLayout hasBottomNav={emergencyState === 'idle'}>
+      {/* Botón de perfil fijo en esquina superior izquierda */}
+      {emergencyState === 'idle' && (
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            onClick={handleProfileOpen}
+            className={`w-14 h-14 rounded-full ${userProfile ? 'bg-emerald-600' : 'bg-cyan-600'} hover:bg-slate-700 text-white shadow-lg relative`}
+          >
+            <User className="h-6 w-6" />
+            {userProfile && (
+              <span className="absolute top-0 right-0 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></span>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Main App - Estado Idle */}
       {emergencyState === 'idle' && (
-        <>
+        <div className="h-full flex flex-col">
           {/* Header */}
-          <div className="text-center py-6 sm:py-8 px-4">
-            <h1 className="text-responsive-xl font-bold text-slate-700 mb-2">AYUDA</h1>
-            <p className="text-slate-600 px-4 text-sm sm:text-base">
-              ¡Siempre estamos aquí para emergencias!
-            </p>
-            <p className="text-slate-600 px-4 text-sm sm:text-base">
-              ¡Toca para iniciar el protocolo de emergencia!
-            </p>
+          <div className="text-center py-6 sm:py-8 px-4 flex-shrink-0">
+            <h1 className="text-responsive-xl font-bold text-slate-700 mb-3">IA LIFE</h1>
           </div>
 
           {/* Emergency Button */}
-          <div className="flex-1 flex items-center justify-center px-8 my-8">
-            <EmergencyButton onEmergencyStart={handleEmergencyStart} />
+          <div className="flex-1 flex items-center justify-center px-8">
+            <EmergencyButton onEmergencyStart={handleEmergencyStart} directCall={true} />
           </div>
 
           {/* Category Carousel */}
-          <div className="pb-6">
+          <div className="pb-6 flex-shrink-0">
             <CategoryCarousel />
           </div>
           
@@ -260,7 +376,15 @@ const EmergencyApp = () => {
 
           {/* Bottom Navigation */}
           <BottomNavigation onEmergencyStart={handleEmergencyStart} />
-        </>
+        </div>
+      )}
+
+      {/* Profile State */}
+      {emergencyState === 'profile' && (
+        <ProfilePage 
+          onBack={goToHome} 
+          onProfileUpdate={updateUserProfile}
+        />
       )}
 
       {/* Listening Modal */}
@@ -282,6 +406,7 @@ const EmergencyApp = () => {
       {emergencyState === 'response' && chatResponse && (
         <EmergencyResponse 
           chatResponse={chatResponse}
+          userProfile={userProfile}
           onReset={resetApp}
           onBack={goBackToPreviousState}
           onHome={goToHome}
@@ -289,28 +414,10 @@ const EmergencyApp = () => {
         />
       )}
 
-      {/* Calling State */}
-      {emergencyState === 'calling' && (
-        <CallingScreen 
-          onReset={resetApp}
-          onBack={goBackToPreviousState}
-          onHome={goToHome}
-        />
-      )}
+      {/* El estado 'calling' ha sido eliminado */}
 
-      {/* Continuous Conversation State */}
-      {emergencyState === 'conversation' && chatResponse && (
-        <ContinuousConversation
-          initialResponse={chatResponse}
-          conversationHistory={conversationMessages}
-          onReset={resetApp}
-          onBack={goBackToPreviousState}
-          onHome={goToHome}
-          onStartListening={handleConversationListening}
-          isListening={isListening}
-          transcript={transcript}
-        />
-      )}
+      {/* Ya no necesitamos el componente ContinuousConversation 
+          porque la conversación continua se maneja directamente con el ListeningModal */}
 
       {/* Conversation History */}
       <ConversationHistory 
@@ -318,21 +425,23 @@ const EmergencyApp = () => {
         emergencyState={emergencyState}
       />
 
-      {/* Botón fijo de emergencias - Siempre visible */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <Button
-          onClick={callAmbulance}
-          className="bg-rose-500 hover:bg-rose-600 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center"
-          size="lg"
-        >
-          <Phone className="w-6 h-6" />
-        </Button>
-        <div className="text-center mt-2">
-          <span className="text-xs text-red-600 font-medium bg-white px-2 py-1 rounded-full shadow-sm">
-            911
-          </span>
+      {/* Botón fijo de emergencias - Visible durante la respuesta y la escucha para continuar la conversación */}
+      {(emergencyState === 'response' || emergencyState === 'listening') && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            onClick={callAmbulance}
+            className="bg-rose-500 hover:bg-rose-600 text-white rounded-full w-24 h-24 shadow-lg flex items-center justify-center"
+            size="lg"
+          >
+            <Ambulance className="w-16 h-16 sm:w-18 sm:h-18" />
+          </Button>
+          <div className="text-center mt-2">
+            <span className="text-xs text-red-600 font-medium bg-white px-2 py-1 rounded-full shadow-sm">
+              911
+            </span>
+          </div>
         </div>
-      </div>
+      )}
     </ResponsiveLayout>
   );
 };

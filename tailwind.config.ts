@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -65,6 +64,9 @@ export default {
 					DEFAULT: 'hsl(var(--success))',
 					foreground: 'hsl(var(--emergency-foreground))'
 				},
+			},
+			fontSize: {
+				'xxs': '0.625rem', // 10px
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
