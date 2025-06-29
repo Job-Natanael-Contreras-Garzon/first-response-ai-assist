@@ -466,7 +466,7 @@ Este proyecto está licenciado bajo la **Licencia MIT** - ver el archivo [LICENS
 
 ### **Contacto y Redes**
 
-- 🌐 **Demo en vivo**: [https://first-response-ai-assist.vercel.app/-life-demo.vercel.app](https://first-response-ai-assist.vercel.app/https://ai-life-demo.vercel.app)
+- 🌐 **Demo en vivo**: [https://first-response-ai-assist.vercel.app/](https://first-response-ai-assist.vercel.app/)
 - 📧 **Email**: equipo-miau@buildwithai-bolivia.com
 - 🐦 **Twitter**: [@AILifeBolivia](https://twitter.com/AILifeBolivia)
 - 💼 **LinkedIn**: [Grupo M-IA-U](https://linkedin.com/company/grupo-miau)
