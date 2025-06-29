@@ -49,16 +49,7 @@ export const categories: EmergencyCategory[] = [
     borderColor: 'border-blue-300'
   },
   
-  // Astillas
-  {
-    id: 'astillas',
-    title: 'Astillas',
-    description: 'Objetos extraños en piel',
-    icon: Scissors,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-300'
-  },
+  
   
   // Intoxicación - leve
   
