@@ -477,14 +477,14 @@ const EmergencyApp = () => {
 
       {/* Main App - Estado Idle */}
       {emergencyState === 'idle' && (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col overflow-y-auto">
           {/* Header */}
           <div className="text-center py-6 sm:py-8 px-4 flex-shrink-0">
             <h1 className="text-responsive-xl font-bold text-slate-700 mb-3">AI LIFE</h1>
           </div>
 
           {/* Emergency Button */}
-          <div className="flex-1 flex items-center justify-center px-8">
+          <div className="flex-1 flex items-center justify-center px-8 min-h-[40vh]">
             <EmergencyButton onEmergencyStart={handleEmergencyStart} directCall={true} />
           </div>
 
@@ -496,7 +496,14 @@ const EmergencyApp = () => {
             />
           </div>
           
-          <MapComponent />
+          {/* Map Component */}
+          <div className="pb-6 flex-shrink-0 px-4">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-slate-700 mb-2">Hospitales Cercanos</h3>
+              <p className="text-sm text-slate-500">Encuentra los hospitales más próximos a tu ubicación</p>
+            </div>
+            <MapComponent />
+          </div>
 
           {/* Bottom Navigation */}
           <BottomNavigation onEmergencyStart={handleEmergencyStart} />
@@ -588,7 +595,9 @@ const EmergencyApp = () => {
         onCallEmergency={handleSilentEmergencyCall}
         isSpeaking={isSpeaking}
       />
+      
     </ResponsiveLayout>
+    
   );
 };
 

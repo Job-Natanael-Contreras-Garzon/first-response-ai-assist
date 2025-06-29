@@ -61,71 +61,17 @@ export const categories: EmergencyCategory[] = [
   },
   
   // Intoxicación - leve
-  {
-    id: 'intoxicacion',
-    title: 'Intoxicación',
-    description: 'Envenenamiento',
-    icon: Pill,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-300',
-    subcategories: [
-      {
-        id: 'intoxicacion_leve',
-        title: 'Leve',
-        description: 'Intoxicación leve',
-        icon: Pill,
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-50',
-        borderColor: 'border-purple-300',
-        parentId: 'intoxicacion'
-      }
-    ]
-  },
+  
   
   // Dolor abdominal
-  {
-    id: 'dolor_abdominal',
-    title: 'Dolor abdominal',
-    description: 'Malestar en vientre',
-    icon: Utensils,
-    color: 'text-yellow-600',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-300'
-  },
   
-  // Dolor en el pecho
-  {
-    id: 'dolor_en_el_pecho',
-    title: 'Dolor en el pecho',
-    description: 'Molestia torácica',
-    icon: Heart,
-    color: 'text-red-600',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-300'
-  },
+  
+  
   
   // Crisis de ansiedad
-  {
-    id: 'crisis_de_ansiedad',
-    title: 'Crisis de ansiedad',
-    description: 'Ataque de pánico',
-    icon: Brain,
-    color: 'text-violet-600',
-    bgColor: 'bg-violet-50',
-    borderColor: 'border-violet-300'
-  },
+  
   
   // Mordeduras
-  {
-    id: 'mordeduras',
-    title: 'Mordeduras',
-    description: 'Animales',
-    icon: Bug,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-300'
-  },
   
   // Alergias - leve
   {
@@ -190,16 +136,6 @@ export const categories: EmergencyCategory[] = [
         color: 'text-orange-600',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-300',
-        parentId: 'quemaduras'
-      },
-      {
-        id: 'quemaduras_ampollas',
-        title: 'Ampollas (2do grado)',
-        description: 'Con ampollas',
-        icon: Flame,
-        color: 'text-orange-700',
-        bgColor: 'bg-orange-100',
-        borderColor: 'border-orange-400',
         parentId: 'quemaduras'
       }
     ]

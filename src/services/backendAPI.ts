@@ -141,7 +141,7 @@ class BackendAPIService {
       if (error instanceof Error && error.message && error.message.includes('CORS')) {
         console.warn('⚠️ Error CORS detectado, usando respuesta fallback contextual');
         return {
-          response: `No pude conectarme al servidor debido a restricciones de seguridad. ${contextualResponse}`
+          response: `No pude conectarme al servidor debido a restricciones de seguridad `
         };
       }
       
