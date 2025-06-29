@@ -65,27 +65,7 @@ export const categories: EmergencyCategory[] = [
   // Mordeduras
   
   // Alergias - leve
-  {
-    id: 'alergias',
-    title: 'Alergias',
-    description: 'Reacciones alérgicas',
-    icon: Thermometer,
-    color: 'text-rose-600',
-    bgColor: 'bg-rose-50',
-    borderColor: 'border-rose-300',
-    subcategories: [
-      {
-        id: 'alergias_leve',
-        title: 'Leve',
-        description: 'Alergia leve',
-        icon: Thermometer,
-        color: 'text-rose-600',
-        bgColor: 'bg-rose-50',
-        borderColor: 'border-rose-300',
-        parentId: 'alergias'
-      }
-    ]
-  },
+  
   
   // Dientes rotos
   {

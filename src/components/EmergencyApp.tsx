@@ -593,6 +593,7 @@ const EmergencyApp = () => {
         chatResponse={chatResponse}
         isLoading={isSilentLoading}
         onCallEmergency={handleSilentEmergencyCall}
+        onContinueConversation={startContinuousConversation}
         isSpeaking={isSpeaking}
       />
       

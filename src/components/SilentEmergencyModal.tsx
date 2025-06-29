@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChatResponse } from '@/services/backendAPI';
 import { EmergencyCategory } from '@/data/emergencyCategories';
-import { X, Ambulance, Volume2, MessageSquare } from 'lucide-react';
+import { X, Ambulance, Volume2, MessageSquare, Mic } from 'lucide-react';
 
 interface SilentEmergencyModalProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface SilentEmergencyModalProps {
   chatResponse: ChatResponse | null;
   isLoading: boolean;
   onCallEmergency: () => void;
+  onContinueConversation?: () => void; // Add this prop to handle voice continuation
   isSpeaking: boolean;
 }
 
@@ -22,8 +23,22 @@ const SilentEmergencyModal: React.FC<SilentEmergencyModalProps> = ({
   chatResponse,
   isLoading,
   onCallEmergency,
+  onContinueConversation,
   isSpeaking
 }) => {
+  // Function to handle the "Continue conversation" button click
+  const handleContinueConversation = () => {
+    // First close the modal
+    onClose();
+    
+    // If a continue handler was provided, call it
+    if (onContinueConversation) {
+      onContinueConversation();
+    } else {
+      console.warn('No handler provided for continuing conversation');
+    }
+  };
+  
   if (!isOpen) return null;
 
   return (
@@ -103,7 +118,15 @@ const SilentEmergencyModal: React.FC<SilentEmergencyModalProps> = ({
                 )}
               </div>
             )}
-
+            <Button 
+                onClick={handleContinueConversation}
+                className="w-full bg-sky-500 hover:bg-sky-600 text-white py-3 md:py-4 text-base md:text-lg shadow-md rounded-xl flex items-center justify-center relative overflow-hidden"
+                size="lg"
+              >
+                <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+                <Mic className="w-5 h-5 mr-2 animate-bounce" />
+                Hablar ahora (activará micrófono)
+              </Button>
             {/* Call Emergency Button */}
             <Button
               onClick={onCallEmergency}
