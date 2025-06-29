@@ -121,7 +121,7 @@ const MapComponent: React.FC<MapComponentProps> = () => {
 
       const request: google.maps.places.PlaceSearchRequest = {
         location: userLocation,
-        radius: 5000, // 6 km en metros
+        radius: 4000, // 5 km en metros
         type: 'hospital',
         };
 
