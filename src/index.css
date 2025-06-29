@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,70 +6,72 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Calming Palette - Light Blue Sky Theme */
+    --background: 194 53% 86%; /* Soft sky blue */
+    --foreground: 210 25% 25%; /* Dark blue-gray for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 180 25% 94%; /* Light seafoam */
+    --card-foreground: 210 25% 25%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 180 25% 94%;
+    --popover-foreground: 210 25% 25%;
 
-    --primary: 0 84% 50%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 194 53% 79%; /* Sky blue */
+    --primary-foreground: 210 25% 25%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 180 25% 88%; /* Seafoam */
+    --secondary-foreground: 210 25% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 60 15% 92%; /* Light beige */
+    --muted-foreground: 210 15% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 174 44% 85%; /* Light mint */
+    --accent-foreground: 210 25% 25%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 84.2% 60.2%; /* Keep emergency red */
     --destructive-foreground: 210 40% 98%;
 
-    --emergency: 0 84% 50%;
+    --emergency: 350 65% 58%; /* Rojo coral suave que contrasta sin impactar */
     --emergency-foreground: 210 40% 98%;
     --warning: 38 92% 50%;
-    --success: 142 76% 36%;
+    --success: 142 50% 50%; /* Softer green */
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 180 20% 85%;
+    --input: 180 20% 90%;
+    --ring: 194 53% 70%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* Slightly more rounded */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark mode with calming palette */
+    --background: 210 30% 8%; /* Very dark blue */
+    --foreground: 194 40% 85%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 210 25% 12%;
+    --card-foreground: 194 40% 85%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 210 25% 12%;
+    --popover-foreground: 194 40% 85%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 194 40% 70%;
+    --primary-foreground: 210 30% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 180 20% 15%;
+    --secondary-foreground: 194 40% 85%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 20% 15%;
+    --muted-foreground: 194 25% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 174 35% 25%;
+    --accent-foreground: 194 40% 85%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 210 20% 18%;
+    --input: 210 20% 15%;
+    --ring: 194 40% 70%;
   }
 }
 
@@ -112,5 +113,86 @@
   }
   50% {
     transform: scaleY(1.5);
+  }
+}
+
+@layer utilities {
+  /* Safe area utilities for mobile devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pb-safe {
+    padding-bottom: calc(theme('spacing.20') + env(safe-area-inset-bottom));
+  }
+  
+  /* Responsive grid utilities */
+  .grid-responsive {
+    @apply grid grid-cols-1;
+  }
+  
+  @media (min-width: 640px) {
+    .grid-responsive {
+      @apply grid-cols-2;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .grid-responsive {
+      @apply grid-cols-3;
+    }
+  }
+  
+  /* Emergency button responsive sizing */
+  .emergency-btn-responsive {
+    @apply w-48 h-48;
+  }
+  
+  @media (min-width: 640px) {
+    .emergency-btn-responsive {
+      @apply w-64 h-64;
+    }
+  }
+  
+  /* Bottom navigation responsive */
+  .bottom-nav-responsive {
+    @apply px-2 py-2;
+  }
+  
+  @media (min-width: 640px) {
+    .bottom-nav-responsive {
+      @apply px-4 py-3;
+    }
+  }
+  
+  /* Text responsive sizing */
+  .text-responsive-xl {
+    @apply text-2xl;
+  }
+  
+  @media (min-width: 640px) {
+    .text-responsive-xl {
+      @apply text-3xl;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .text-responsive-xl {
+      @apply text-4xl;
+    }
+  }
+  
+  /* Scrollbar hide para el carrusel */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Safari and Chrome */
   }
 }
