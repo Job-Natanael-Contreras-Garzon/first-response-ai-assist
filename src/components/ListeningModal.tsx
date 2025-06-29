@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, X, Volume2 } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Ambulance } from 'lucide-react';
 
 interface ListeningModalProps {
   isOpen: boolean;
@@ -32,8 +32,37 @@ const ListeningModal: React.FC<ListeningModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const handleEmergencyCall = () => {
+    if (window.confirm('¿Deseas realizar una llamada de emergencia al 911?')) {
+      window.location.href = 'tel:911';
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {/* Botón flotante de emergencia en la parte superior */}
+      <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-60">
+        <Button
+          onClick={handleEmergencyCall}
+          className="bg-gradient-to-br from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white rounded-full w-20 h-20 shadow-2xl animate-pulse"
+        >
+          <Ambulance className="h-14 w-14 sm:h-16 sm:w-16" />
+        </Button>
+        <div className="text-center mt-2">
+          <span className="text-xs text-white font-medium bg-red-600 px-2 py-1 rounded-full shadow-sm">
+            911
+          </span>
+        </div>
+      </div>
+      
+      {/* Indicador de continuación de conversación */}
+      <div className="fixed top-2 left-1/2 transform -translate-x-1/2 bg-sky-600 text-white text-xs py-1 px-3 rounded-full shadow-lg flex items-center gap-1">
+        {sessionStorage.getItem('emergency_session_id') && (
+          <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></span>
+        )}
+        {(transcript || interimTranscript) ? "Continuando la conversación..." : "Sesión activa"}
+      </div>
+
       <Card className="w-full max-w-md mx-4 bg-white/95 border-cyan-200 shadow-xl">
         <div className="p-6">
           {/* Header */}
@@ -57,10 +86,16 @@ const ListeningModal: React.FC<ListeningModalProps> = ({
           {/* Content */}
           <div className="text-center space-y-4">
             <h2 className="text-xl font-bold text-slate-700">
-              Describe tu emergencia
+              {transcript || interimTranscript ? 
+                "Continúa hablando" : 
+                "Describe tu emergencia"
+              }
             </h2>
             <p className="text-slate-600 text-sm">
-              Explica claramente qué está pasando para poder ayudarte mejor
+              {transcript || interimTranscript ? 
+                "Estamos escuchando y continuando la conversación" : 
+                "Explica claramente qué está pasando para poder ayudarte mejor"
+              }
             </p>
 
             {/* Voice Indicator */}
@@ -132,13 +167,19 @@ const ListeningModal: React.FC<ListeningModalProps> = ({
                 disabled={!(transcript.trim() || interimTranscript.trim())}
                 className="w-full bg-gradient-to-br from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
-                {(transcript.trim() || interimTranscript.trim()) ? '🔴 Detener y Analizar' : '🎤 Hablando...'}
+                {(transcript.trim() || interimTranscript.trim()) ? '🔴 Enviar y Continuar' : '🎤 Te estamos escuchando...'}
               </Button>
             )}
 
             {emergencyState === 'analyzing' && (
               <div className="text-center">
                 <p className="text-sky-600 text-sm">🤖 Analizando tu emergencia...</p>
+                <p className="text-xs text-slate-500 mt-2">
+                  Estamos procesando tu mensaje usando el mismo ID de sesión
+                </p>
+                <div className="text-xxs text-blue-400 mt-1 bg-blue-50 rounded-full px-2 py-0.5 inline-block">
+                  {sessionStorage.getItem('emergency_session_id')?.substring(0, 8)}...
+                </div>
               </div>
             )}
           </div>
