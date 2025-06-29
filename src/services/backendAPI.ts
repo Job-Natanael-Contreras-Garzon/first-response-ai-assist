@@ -20,7 +20,7 @@ class BackendAPIService {
 
   constructor() {
     // Usar variable de entorno para la URL de la API
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const apiBase = import.meta.env.VITE_API_URL || 'https://genetic-bette-ann-alan-fabian-m-636b9c57.koyeb.app';
     this.baseUrl = `${apiBase}/chat`;
     
     // Comprobar si ya existe un ID en sessionStorage para mantenerlo durante la sesión
@@ -88,17 +88,26 @@ class BackendAPIService {
 
       // Configurar el fetch con opciones para evitar problemas de CORS
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout (más corto)
       
-      const response = await fetch(this.baseUrl, {
+      // Intentar usar un proxy CORS si está disponible
+      const fetchUrl = this.baseUrl;
+      
+      // Log de la URL para depuración
+      if (this.baseUrl.includes('koyeb.app')) {
+        console.log('⚠️ Usando URL directa, posible problema de CORS');
+      }
+      
+      const response = await fetch(fetchUrl, {
         method: 'POST',
         mode: 'cors',
-        credentials: 'omit', // Evitar enviar cookies que puedan causar problemas de CORS
+        credentials: 'omit', // Evitar enviar cookies
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Origin': window.location.origin,
-          'Cache-Control': 'no-cache, no-store'
+          'Cache-Control': 'no-cache, no-store',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         signal: controller.signal,
         body: JSON.stringify(requestBody)
@@ -109,16 +118,13 @@ class BackendAPIService {
       if (!response.ok) {
         console.error(`Error HTTP: ${response.status} - ${response.statusText}`);
         
-        // Si hay un error 500, podría ser un problema del servidor o un timeout
-        // Intentamos proporcionar una respuesta simulada para continuar la conversación
-        if (response.status === 500) {
-          console.warn('⚠️ Error 500 del servidor, utilizando respuesta fallback');
-          return {
-            response: "Parece que hay un problema técnico. ¿Puedes describir nuevamente tu emergencia o llamar directamente al 911?"
-          };
-        }
+        // Generar respuesta contextual basada en el texto enviado
         
-        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+        // Si hay un error HTTP, proporcionamos una respuesta contextual
+        console.warn(`⚠️ Error HTTP ${response.status}, utilizando respuesta fallback contextual`);
+        return {
+          response: `Ocurrió un error inesperado. con la respuesta o no nos llego `
+        };
       }
 
       const data = await response.json();
@@ -129,36 +135,41 @@ class BackendAPIService {
     } catch (error: unknown) {
       console.error('❌ Error al comunicarse con el backend:', error);
       
+      // Generamos una respuesta contextual basada en el texto enviado
+      
       // Si es un error de CORS
       if (error instanceof Error && error.message && error.message.includes('CORS')) {
-        console.warn('⚠️ Error CORS detectado, usando respuesta fallback');
+        console.warn('⚠️ Error CORS detectado, usando respuesta fallback contextual');
         return {
-          response: "Hay un problema técnico con el servidor (error CORS). Mientras tanto, ¿puedes describir tu emergencia y buscaré ayudarte?"
+          response: `No pude conectarme al servidor debido a restricciones de seguridad. ${contextualResponse}`
         };
       }
       
       // Si es un error de timeout/abort
       if (error instanceof Error && error.name === 'AbortError') {
-        console.warn('⚠️ Timeout en la solicitud, usando respuesta fallback');
+        console.warn('⚠️ Timeout en la solicitud, usando respuesta fallback contextual');
         return {
-          response: "La respuesta está tardando demasiado. Por favor, describe tu emergencia nuevamente o considera llamar al 911 directamente si es urgente."
+          response: `El servidor está tardando en responder. `
         };
       }
       
       // Si es un error de red/fetch
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Error de conexión, usando respuesta fallback');
+        console.warn('⚠️ Error de conexión, usando respuesta fallback contextual');
         return {
-          response: "No puedo conectarme al servidor en este momento. Por favor, describe tu situación y buscaré ayudarte lo mejor posible, o llama directamente al 911."
+          response: `No pude conectarme al servidor. `
         };
       }
       
-      // En caso de otros errores, proporcionar una respuesta fallback genérica
+      // En caso de otros errores, proporcionar la respuesta contextual
+      console.warn('⚠️ Error general, usando respuesta fallback contextual');
       return {
-        response: `Hubo un problema técnico, pero seguiré atendiendo tu emergencia. Por favor, continúa explicando lo que necesitas.`
+        response: `Ocurrió un error inesperado. con la respuesta o no nos llego `
       };
     }
   }
+
+  
 
   resetSession(): void {
     // Generar un nuevo ID de sesión

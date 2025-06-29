@@ -115,7 +115,7 @@ const ContinuousConversation: React.FC<ContinuousConversationProps> = ({
           size="lg"
         >
           <Ambulance className="w-10 h-10 md:w-12 md:h-12 mr-2 animate-pulse" />
-          <span>🚨 LLAMAR EMERGENCIAS (911) 🚨</span>
+          <span>🚨 LLAMAR EMERGENCIAS (160) 🚨</span>
         </Button>
       </div>
 

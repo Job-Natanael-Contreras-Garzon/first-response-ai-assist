@@ -7,6 +7,7 @@ import { backendAPI, ChatResponse } from '@/services/backendAPI';
 import { AlertTriangle, Ambulance, User } from 'lucide-react';
 import { toast } from 'sonner';
 import CategoryCarousel from './CategoryCarousel';
+import { EmergencyCategory, categories } from '@/data/emergencyCategories';
 import EmergencyButton from './EmergencyButton';
 import ListeningModal from './ListeningModal';
 import EmergencyResponse from './EmergencyResponse';
@@ -14,6 +15,7 @@ import ConversationHistory from './ConversationHistory';
 import BottomNavigation from './BottomNavigation';
 import ResponsiveLayout from './ResponsiveLayout';
 import ProfilePage from '../pages/ProfilePage';
+import SilentEmergencyModal from './SilentEmergencyModal';
 
 interface ConversationMessage {
   id: string;
@@ -22,7 +24,7 @@ interface ConversationMessage {
   timestamp: Date;
 }
 
-type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'conversation' | 'profile';
+type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'conversation' | 'profile' | 'silent';
 
 const EmergencyApp = () => {
   const [emergencyState, setEmergencyState] = useState<EmergencyState>('idle');
@@ -30,6 +32,9 @@ const EmergencyApp = () => {
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [showListeningModal, setShowListeningModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<EmergencyCategory | null>(null);
+  const [isSilentLoading, setIsSilentLoading] = useState(false);
+  const [showSilentModal, setShowSilentModal] = useState(false);
   const [userProfile, setUserProfile] = useState<{
     fullName?: string;
     bloodType?: string;
@@ -286,6 +291,122 @@ const EmergencyApp = () => {
     setUserProfile(profile);
   };
 
+  const handleCategorySelect = async (category: EmergencyCategory) => {
+    console.log('Categoría seleccionada:', category);
+    setSelectedCategory(category);
+    setEmergencyState('silent');
+    setShowSilentModal(true);
+    setIsSilentLoading(true);
+    
+    // Creamos mensaje según jerarquía
+    let silentMessage = "";
+    
+    // Si es subcategoría, incluir la categoría principal en el mensaje
+    if (category.parentId) {
+      // Buscamos la categoría padre
+      const parentCategory = categories.find(c => c.id === category.parentId);
+      if (parentCategory) {
+        silentMessage = `Tengo una emergencia de tipo ${parentCategory.title.toLowerCase()} ${category.title.toLowerCase()}`;
+      } else {
+        silentMessage = `Tengo una emergencia de tipo ${category.title.toLowerCase()}`;
+      }
+    } else {
+      // Es una categoría principal
+      silentMessage = `Tengo una emergencia de tipo ${category.title.toLowerCase()}`;
+    }
+    
+    // Siempre generar un nuevo ID de sesión para cada interacción con categoría primaria
+    // Si es una categoría principal o estamos cambiando de categoría principal
+    const isNewMainCategory = !category.parentId || 
+      (category.parentId && (!selectedCategory || !selectedCategory.parentId || 
+      selectedCategory.parentId !== category.parentId));
+      
+    if (isNewMainCategory) {
+      backendAPI.resetSession();
+      console.log('🔄 Nueva sesión para nueva emergencia principal:', backendAPI.getSessionId());
+    } else {
+      console.log('📝 Continuando con la misma sesión para subcategoría de la misma categoría principal');
+    }
+    
+    console.log('Enviando mensaje silencioso:', silentMessage);
+    
+    try {
+      
+      const response = await backendAPI.sendMessage(silentMessage, userProfile);
+      setChatResponse(response);
+      
+      // Agregamos mensajes a la conversación
+      setConversationMessages(prev => [
+        ...prev, 
+        {
+          id: Date.now().toString(),
+          type: 'user',
+          message: silentMessage,
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          message: response.response,
+          timestamp: new Date()
+        }
+      ]);
+      
+      // Leer la respuesta en voz alta
+      speak(response.response);
+      
+    } catch (error) {
+      console.error('Error al procesar emergencia silenciosa:', error);
+      
+      const fallbackResponse = {
+        response: "Lo siento, tuve problemas para conectarme al servicio. Por favor, intenta seleccionar otra categoría o considera llamar directamente al 911 si es una emergencia."
+      };
+      
+      setChatResponse(fallbackResponse);
+      
+      // Agregar mensajes a la conversación
+      // Usar el mismo formato de mensaje para mantener coherencia
+      setConversationMessages(prev => [
+        ...prev, 
+        {
+          id: Date.now().toString(),
+          type: 'user',
+          message: silentMessage || ` ${category.title.toLowerCase()}: ${category.description}`,
+          timestamp: new Date()
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          message: fallbackResponse.response,
+          timestamp: new Date()
+        }
+      ]);
+      
+      // Leer el mensaje de error
+      speak(fallbackResponse.response);
+      
+      toast.error('Problemas de conexión con el servidor', {
+        duration: 5000,
+      });
+    } finally {
+      setIsSilentLoading(false);
+    }
+  };
+
+  const handleCloseSilentModal = () => {
+    setShowSilentModal(false);
+    setEmergencyState('idle');
+    setSelectedCategory(null);
+    setChatResponse(null);
+    cancel();
+  };
+
+  const handleSilentEmergencyCall = () => {
+    if (window.confirm('¿Deseas realizar una llamada de emergencia al 160?')) {
+      window.location.href = 'tel:160';
+    }
+  };
+
   useEffect(() => {
     if (speechError) {
       toast.error(`Error de voz: ${speechError}`);
@@ -357,7 +478,7 @@ const EmergencyApp = () => {
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="text-center py-6 sm:py-8 px-4 flex-shrink-0">
-            <h1 className="text-responsive-xl font-bold text-slate-700 mb-3">IA LIFE</h1>
+            <h1 className="text-responsive-xl font-bold text-slate-700 mb-3">AI LIFE</h1>
           </div>
 
           {/* Emergency Button */}
@@ -367,7 +488,10 @@ const EmergencyApp = () => {
 
           {/* Category Carousel */}
           <div className="pb-6 flex-shrink-0">
-            <CategoryCarousel />
+            <CategoryCarousel 
+              onCategorySelect={handleCategorySelect}
+              selectedCategoryId={selectedCategory?.id || null}
+            />
           </div>
 
           {/* Bottom Navigation */}
@@ -420,6 +544,17 @@ const EmergencyApp = () => {
         conversationHistory={conversationHistory}
         emergencyState={emergencyState}
       />
+      
+      {/* Silent Emergency Modal */}
+      <SilentEmergencyModal
+        isOpen={showSilentModal}
+        onClose={handleCloseSilentModal}
+        category={selectedCategory}
+        chatResponse={chatResponse}
+        isLoading={isSilentLoading}
+        onCallEmergency={handleSilentEmergencyCall}
+        isSpeaking={isSpeaking}
+      />
 
       {/* Botón fijo de emergencias - Visible durante la respuesta y la escucha para continuar la conversación */}
       {(emergencyState === 'response' || emergencyState === 'listening') && (
@@ -438,6 +573,17 @@ const EmergencyApp = () => {
           </div>
         </div>
       )}
+
+      {/* Silent Emergency Modal */}
+      <SilentEmergencyModal
+        isOpen={showSilentModal}
+        onClose={handleCloseSilentModal}
+        category={selectedCategory}
+        chatResponse={chatResponse}
+        isLoading={isSilentLoading}
+        onCallEmergency={handleSilentEmergencyCall}
+        isSpeaking={isSpeaking}
+      />
     </ResponsiveLayout>
   );
 };
