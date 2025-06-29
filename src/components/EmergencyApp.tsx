@@ -8,6 +8,8 @@ import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { backendAPI, ChatResponse } from '@/services/backendAPI';
 import { Phone, Mic, MicOff, AlertTriangle, Volume2, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+import MapComponent from "../pages/MapComponent";
 import CategoryCarousel from './CategoryCarousel';
 
 type EmergencyState = 'idle' | 'listening' | 'analyzing' | 'response' | 'followup' | 'calling';
@@ -194,6 +196,8 @@ const EmergencyApp = () => {
           <div className="pb-8">
             <CategoryCarousel />
           </div>
+          
+          <MapComponent />
 
           {/* Bottom Navigation */}
           <div className="flex justify-center items-center space-x-8 py-6 bg-gray-900">
